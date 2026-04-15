@@ -1,44 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 
-class VinylRecord extends StatefulWidget {
+class VinylRecord extends StatelessWidget {
   final bool isPlaying;
-  final Widget child; // album artwork in the center
+  final int? albumId;
 
-  const VinylRecord({super.key, required this.isPlaying, required this.child});
-
-  @override
-  State<VinylRecord> createState() => _VinylRecordState();
-}
-
-class _VinylRecordState extends State<VinylRecord>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 18),
-    );
-    if (widget.isPlaying) _ctrl.repeat();
-  }
-
-  @override
-  void didUpdateWidget(VinylRecord old) {
-    super.didUpdateWidget(old);
-    if (widget.isPlaying && !_ctrl.isAnimating) {
-      _ctrl.repeat();
-    } else if (!widget.isPlaying && _ctrl.isAnimating) {
-      _ctrl.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  const VinylRecord({
+    super.key,
+    required this.isPlaying,
+    this.albumId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +19,6 @@ class _VinylRecordState extends State<VinylRecord>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Glow effect
           Container(
             width: 240,
             height: 240,
@@ -56,46 +26,58 @@ class _VinylRecordState extends State<VinylRecord>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.purple.withOpacity(0.15),
+                  color: Colors.purple.withAlpha(40),
                   blurRadius: 40,
                   spreadRadius: 10,
                 ),
               ],
             ),
           ),
-          // Rotating vinyl body AND album art
-          RotationTransition(
-            turns: _ctrl,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 220,
-                  height: 220,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const SweepGradient(
-                      colors: [Color(0xFF111111), Color(0xFF1C1C1C), Color(0xFF111111)],
+          Container(
+            width: 220,
+            height: 220,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: SweepGradient(
+                colors: [
+                  Color(0xFF111111),
+                  Color(0xFF1C1C1C),
+                  Color(0xFF111111)
+                ],
+              ),
+            ),
+            child: CustomPaint(painter: _VinylGroovesPainter()),
+          ),
+          ClipOval(
+            child: SizedBox(
+              width: 80,
+              height: 80,
+              child: albumId != null
+                  ? QueryArtworkWidget(
+                      id: albumId!,
+                      type: ArtworkType.ALBUM,
+                      artworkFit: BoxFit.cover,
+                      artworkWidth: 80,
+                      artworkHeight: 80,
+                      nullArtworkWidget: Container(
+                        color: const Color(0xFF1C1C1C),
+                        child: const Icon(
+                          Icons.music_note_rounded,
+                          color: Colors.white54,
+                          size: 28,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: const Color(0xFF1C1C1C),
+                      child: const Icon(
+                        Icons.music_note_rounded,
+                        color: Colors.white54,
+                        size: 28,
+                      ),
                     ),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.06),
-                      width: 1,
-                    ),
-                  ),
-                  child: CustomPaint(painter: _VinylGroovesPainter()),
-                ),
-                // Center album art (now inside rotation)
-                ClipOval(
-                  child: SizedBox(
-                    width: 80,
-                    height: 80,
-                    child: widget.child,
-                  ),
-                ),
-              ],
             ),
           ),
-          // Center spindle hole (static)
           Container(
             width: 10,
             height: 10,
@@ -121,9 +103,8 @@ class _VinylGroovesPainter extends CustomPainter {
       ..strokeWidth = 0.5;
 
     for (double r = 45; r < maxR - 2; r += 4) {
-      paint.color = (r % 8 < 4)
-          ? Colors.white.withOpacity(0.04)
-          : Colors.black.withOpacity(0.3);
+      paint.color =
+          (r % 8 < 4) ? Colors.white.withAlpha(10) : Colors.black.withAlpha(77);
       canvas.drawCircle(center, r, paint);
     }
   }

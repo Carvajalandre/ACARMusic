@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
+import 'playlist_detail_screen.dart';
 
 class PlaylistsScreen extends StatelessWidget {
   const PlaylistsScreen({super.key});
@@ -379,17 +380,17 @@ class PlaylistsScreen extends StatelessWidget {
     );
   }
 
-  void _openPlaylist(BuildContext context, LibraryProvider library, int id,
-      String name) async {
-    final songs = await library.getSongsFromPlaylist(id);
-    if (context.mounted) {
-      if (songs.isEmpty) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Playlist is empty')));
-      } else {
-        context.read<AudioProvider>().playSong(songs.first, songs, 0);
-      }
-    }
+  void _openPlaylist(
+      BuildContext context, LibraryProvider library, int id, String name) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlaylistDetailScreen(
+          playlistId: id,
+          playlistName: name,
+        ),
+      ),
+    );
   }
 }
 

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
@@ -7,6 +8,7 @@ enum AppRepeatState { off, all, one }
 
 class AudioProvider extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
+  AudioSession? _session;
 
   List<SongModel> _queue = [];
   int _currentIndex = -1;
@@ -15,9 +17,9 @@ class AudioProvider extends ChangeNotifier {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   bool _isPlaying = false;
-  bool _isInitialized = false;
 
-  AudioPlayer get player => _player;
+  bool _positionChanged = false;
+
   List<SongModel> get queue => _queue;
   int get currentIndex => _currentIndex;
   bool get isPlaying => _isPlaying;
@@ -40,31 +42,37 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Future<void> _init() async {
-    if (_isInitialized) return;
-
     try {
-      final session = await AudioSession.instance;
-      await session.configure(const AudioSessionConfiguration.music());
+      _session = await AudioSession.instance;
+      await _session!.configure(const AudioSessionConfiguration.music());
+      await _session!.setActive(true);
 
       _player.positionStream.listen((pos) {
         _position = pos;
-        notifyListeners();
+        _positionChanged = true;
+      });
+
+      Timer.periodic(const Duration(milliseconds: 100), (timer) {
+        if (_positionChanged) {
+          _positionChanged = false;
+          notifyListeners();
+        }
       });
 
       _player.durationStream.listen((dur) {
         _duration = dur ?? Duration.zero;
-        notifyListeners();
       });
 
       _player.playerStateStream.listen((state) {
+        final wasPlaying = _isPlaying;
         _isPlaying = state.playing;
-        notifyListeners();
+        if (wasPlaying != _isPlaying) {
+          notifyListeners();
+        }
         if (state.processingState == ProcessingState.completed) {
           _onTrackCompleted();
         }
       });
-
-      _isInitialized = true;
     } catch (e) {
       debugPrint('Error initializing audio: $e');
     }
@@ -82,7 +90,6 @@ class AudioProvider extends ChangeNotifier {
       await _player.setFilePath(path);
       await _player.play();
       _isPlaying = true;
-      notifyListeners();
     } catch (e) {
       debugPrint('Error playing song: $e');
     }
@@ -94,8 +101,6 @@ class AudioProvider extends ChangeNotifier {
     } else {
       await _player.play();
     }
-    _isPlaying = _player.playing;
-    notifyListeners();
   }
 
   Future<void> skipNext() async {
@@ -163,6 +168,7 @@ class AudioProvider extends ChangeNotifier {
   @override
   void dispose() {
     _player.dispose();
+    _session?.setActive(false);
     super.dispose();
   }
 }
