@@ -8,9 +8,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:sonic_monolith/app.dart';
-import 'package:sonic_monolith/providers/audio_provider.dart';
-import 'package:sonic_monolith/providers/library_provider.dart';
+import 'package:ACARMusic/app.dart';
+import 'package:ACARMusic/providers/audio_provider.dart';
+import 'package:ACARMusic/providers/library_provider.dart';
 import 'package:provider/provider.dart';
 
 void main() {

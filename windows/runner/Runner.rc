@@ -90,12 +90,10 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "sonic_monolith" "\0"
-            VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "sonic_monolith" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "sonic_monolith.exe" "\0"
-            VALUE "ProductName", "sonic_monolith" "\0"
+VALUE "FileDescription", "ACARMusic" "\0"
+            VALUE "InternalName", "ACARMusic" "\0"
+            VALUE "OriginalFilename", "ACARMusic.exe" "\0"
+            VALUE "ProductName", "ACARMusic" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

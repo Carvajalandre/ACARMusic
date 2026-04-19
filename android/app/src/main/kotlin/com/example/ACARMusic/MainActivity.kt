@@ -1,4 +1,4 @@
-package com.example.sonic_monolith
+package com.example.ACARMusic
 
 import io.flutter.embedding.android.FlutterActivity
 

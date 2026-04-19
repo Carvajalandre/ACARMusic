@@ -1,6 +1,6 @@
 {
-    "name": "sonic_monolith",
-    "short_name": "sonic_monolith",
+    "name": "ACARMusic",
+    "short_name": "ACARMusic",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

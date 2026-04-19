@@ -1,4 +1,4 @@
-name: sonic_monolith
+name: ACARMusic
 description: "A premium local music player app for Samsung Android devices."
 publish_to: 'none'
 version: 1.0.0+1
