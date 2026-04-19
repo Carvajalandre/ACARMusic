@@ -8,9 +8,12 @@ import 'providers/library_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ✅ Habilitamos TODAS las orientaciones (vertical y horizontal)
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
   ]);
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -26,7 +29,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AudioProvider()),
         ChangeNotifierProvider(create: (_) => LibraryProvider()),
       ],
-      child: const SonicMonolithApp(),
+      child: const ACARMusicApp(),
     ),
   );
 }
