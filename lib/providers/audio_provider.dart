@@ -47,6 +47,7 @@ class AudioProvider extends ChangeNotifier {
       await _session!.configure(const AudioSessionConfiguration.music());
       await _session!.setActive(true);
 
+      // Posición: notificar cada 100ms para no saturar el UI
       _player.positionStream.listen((pos) {
         _position = pos;
         _positionChanged = true;
@@ -66,32 +67,31 @@ class AudioProvider extends ChangeNotifier {
       _player.playerStateStream.listen((state) {
         final wasPlaying = _isPlaying;
         _isPlaying = state.playing;
-        if (wasPlaying != _isPlaying) {
-          notifyListeners();
-        }
+        if (wasPlaying != _isPlaying) notifyListeners();
         if (state.processingState == ProcessingState.completed) {
           _onTrackCompleted();
         }
       });
     } catch (e) {
-      debugPrint('Error initializing audio: $e');
+      debugPrint('Error inicializando audio: $e');
     }
   }
 
-  Future<void> playSong(
-      SongModel song, List<SongModel> queue, int index) async {
+  // ─── Reproducción ─────────────────────────────────────────────────────────
+
+  Future<void> playSong(SongModel song, List<SongModel> queue, int index) async {
     _queue = queue;
     _currentIndex = index;
     notifyListeners();
 
     try {
       final path = song.data;
-      if (path == null) return;
+      if (path == null || path.isEmpty) return;
       await _player.setFilePath(path);
       await _player.play();
       _isPlaying = true;
     } catch (e) {
-      debugPrint('Error playing song: $e');
+      debugPrint('Error reproduciendo: $e');
     }
   }
 
@@ -103,33 +103,66 @@ class AudioProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> seekTo(double progress) async {
+    if (_duration.inMilliseconds == 0) return;
+    final ms = (progress * _duration.inMilliseconds).round();
+    await _player.seek(Duration(milliseconds: ms));
+  }
+
+  // ─── Navegación ───────────────────────────────────────────────────────────
+
   Future<void> skipNext() async {
     if (_queue.isEmpty) return;
-    int next;
+
     if (_isShuffleOn) {
-      next =
-          (_currentIndex + 1 + (DateTime.now().millisecond % _queue.length)) %
-              _queue.length;
-    } else {
-      next = (_currentIndex + 1) % _queue.length;
+      final rand = DateTime.now().millisecondsSinceEpoch % _queue.length;
+      await playSong(_queue[rand], _queue, rand);
+      return;
     }
-    await playSong(_queue[next], _queue, next);
+
+    final next = _currentIndex + 1;
+    if (next < _queue.length) {
+      await playSong(_queue[next], _queue, next);
+    } else if (_repeatMode == AppRepeatState.all) {
+      await playSong(_queue[0], _queue, 0);
+    }
   }
 
   Future<void> skipPrevious() async {
     if (_queue.isEmpty) return;
+
+    // Si llevamos > 3s en la canción, rebobinar
     if (_position.inSeconds > 3) {
       await _player.seek(Duration.zero);
       return;
     }
-    final prev = (_currentIndex - 1 + _queue.length) % _queue.length;
-    await playSong(_queue[prev], _queue, prev);
+
+    final prev = _currentIndex - 1;
+    if (prev >= 0) {
+      await playSong(_queue[prev], _queue, prev);
+    } else if (_repeatMode == AppRepeatState.all) {
+      await playSong(_queue[_queue.length - 1], _queue, _queue.length - 1);
+    }
   }
 
-  Future<void> seekTo(double value) async {
-    final ms = (_duration.inMilliseconds * value).toInt();
-    await _player.seek(Duration(milliseconds: ms));
+  void _onTrackCompleted() {
+    switch (_repeatMode) {
+      case AppRepeatState.one:
+        _player.seek(Duration.zero);
+        _player.play();
+        break;
+      case AppRepeatState.all:
+        skipNext();
+        break;
+      case AppRepeatState.off:
+        if (_currentIndex < _queue.length - 1) {
+          skipNext();
+        }
+        break;
+    }
   }
+
+  // ─── Modos ────────────────────────────────────────────────────────────────
 
   void toggleShuffle() {
     _isShuffleOn = !_isShuffleOn;
@@ -137,30 +170,18 @@ class AudioProvider extends ChangeNotifier {
   }
 
   void toggleRepeat() {
-    switch (_repeatMode) {
-      case AppRepeatState.off:
-        _repeatMode = AppRepeatState.all;
-        _player.setLoopMode(LoopMode.all);
-        break;
-      case AppRepeatState.all:
-        _repeatMode = AppRepeatState.one;
-        _player.setLoopMode(LoopMode.one);
-        break;
-      case AppRepeatState.one:
-        _repeatMode = AppRepeatState.off;
-        _player.setLoopMode(LoopMode.off);
-        break;
-    }
+    _repeatMode = switch (_repeatMode) {
+      AppRepeatState.off => AppRepeatState.all,
+      AppRepeatState.all => AppRepeatState.one,
+      AppRepeatState.one => AppRepeatState.off,
+    };
     notifyListeners();
   }
 
-  void _onTrackCompleted() {
-    if (_repeatMode == AppRepeatState.one) return;
-    skipNext();
-  }
+  // ─── Utilidades ───────────────────────────────────────────────────────────
 
   String formatDuration(Duration d) {
-    final m = d.inMinutes;
+    final m = d.inMinutes.toString();
     final s = (d.inSeconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
   }
@@ -168,7 +189,6 @@ class AudioProvider extends ChangeNotifier {
   @override
   void dispose() {
     _player.dispose();
-    _session?.setActive(false);
     super.dispose();
   }
 }

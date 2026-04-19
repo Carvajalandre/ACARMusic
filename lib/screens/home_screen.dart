@@ -29,31 +29,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final library = context.read<LibraryProvider>();
-    
     if (!context.select<LibraryProvider, bool>((l) => l.hasPermission)) {
       return const PermissionScreen();
     }
 
+    return OrientationBuilder(
+      builder: (context, orientation) {
+        if (orientation == Orientation.landscape) {
+          return _buildLandscape();
+        }
+        return _buildPortrait();
+      },
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VERTICAL
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildPortrait() {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: Stack(
         children: [
-          // Main content
-          IndexedStack(
-            index: _currentIndex,
-            children: _screens,
-          ),
-
-          // Mini player sits above the bottom nav
+          IndexedStack(index: _currentIndex, children: _screens),
           Selector<AudioProvider, int?>(
             selector: (_, a) => a.currentSong?.id,
-            builder: (context, songId, child) {
+            builder: (context, songId, _) {
               if (songId == null) return const SizedBox.shrink();
               return const Positioned(
                 left: 0,
                 right: 0,
-                bottom: 80, // height of bottom nav
+                bottom: 80,
                 child: MiniPlayer(),
               );
             },
@@ -64,66 +70,118 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.8),
-        border: Border(
-          top: BorderSide(
-            color: Colors.white.withOpacity(0.05),
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HORIZONTAL — navegación lateral
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildLandscape() {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: Row(
         children: [
-          _NavItem(icon: Icons.library_music_rounded, label: 'Library',  index: 0, current: _currentIndex, onTap: _onTab),
-          _NavItem(icon: Icons.explore_rounded,       label: 'Explore',  index: 1, current: _currentIndex, onTap: _onTab),
-          _NavItem(icon: Icons.queue_music_rounded,   label: 'Library',  index: 2, current: _currentIndex, onTap: _onTab),
-          _NavItem(icon: Icons.settings_rounded,      label: 'Settings', index: 3, current: _currentIndex, onTap: _onTab),
+          // Rail de navegación izquierdo
+          _buildSideNav(),
+          // Contenido principal
+          Expanded(
+            child: Stack(
+              children: [
+                IndexedStack(index: _currentIndex, children: _screens),
+                Selector<AudioProvider, int?>(
+                  selector: (_, a) => a.currentSong?.id,
+                  builder: (context, songId, _) {
+                    if (songId == null) return const SizedBox.shrink();
+                    return const Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: MiniPlayer(),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  void _onTab(int i) => setState(() => _currentIndex = i);
-}
+  Widget _buildSideNav() {
+    final items = [
+      (Icons.library_music_rounded, 'Biblioteca'),
+      (Icons.explore_rounded, 'Explorar'),
+      (Icons.queue_music_rounded, 'Listas'),
+      (Icons.settings_rounded, 'Ajustes'),
+    ];
+    return Container(
+      width: 64,
+      color: Colors.black,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(items.length, (i) {
+          final active = _currentIndex == i;
+          return GestureDetector(
+            onTap: () => setState(() => _currentIndex = i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: active
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Icon(
+                items[i].$1,
+                color: active ? AppTheme.onSurface : AppTheme.outline,
+                size: active ? 26 : 24,
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
 
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final int index;
-  final int current;
-  final void Function(int) onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.index,
-    required this.current,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = index == current;
-    return GestureDetector(
-      onTap: () => onTap(index),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        decoration: BoxDecoration(
-          color: isActive ? Colors.white.withOpacity(0.08) : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
+  Widget _buildBottomNav() {
+    final items = [
+      (Icons.library_music_rounded, 'Biblioteca'),
+      (Icons.explore_rounded, 'Explorar'),
+      (Icons.queue_music_rounded, 'Listas'),
+      (Icons.settings_rounded, 'Ajustes'),
+    ];
+    return Container(
+      height: 80,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.8),
+        border: Border(
+          top: BorderSide(color: Colors.white.withOpacity(0.05), width: 0.5),
         ),
-        child: Icon(
-          icon,
-          color: isActive ? AppTheme.onSurface : AppTheme.outline,
-          size: isActive ? 26 : 24,
-        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: List.generate(items.length, (i) {
+          final active = _currentIndex == i;
+          return GestureDetector(
+            onTap: () => setState(() => _currentIndex = i),
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              decoration: BoxDecoration(
+                color: active
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Icon(
+                items[i].$1,
+                color: active ? AppTheme.onSurface : AppTheme.outline,
+                size: active ? 26 : 24,
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
