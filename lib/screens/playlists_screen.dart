@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
-import 'playlist_detail_screen.dart';
+import '../models/custom_playlist.dart';
+import 'song_list_screen.dart';
 
 class PlaylistsScreen extends StatelessWidget {
   const PlaylistsScreen({super.key});
@@ -13,7 +13,6 @@ class PlaylistsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final library = context.watch<LibraryProvider>();
-    final audio = context.watch<AudioProvider>();
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -21,10 +20,10 @@ class PlaylistsScreen extends StatelessWidget {
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(child: _buildHeader(context, library)),
-            SliverToBoxAdapter(child: _buildBentoGrid(library, audio, context)),
-            SliverToBoxAdapter(child: _buildCollectionsHeader()),
-            _buildCollections(library, audio),
-            const SliverToBoxAdapter(child: SizedBox(height: 160)),
+            SliverToBoxAdapter(child: _buildTopCards(context, library)),
+            SliverToBoxAdapter(child: _buildSectionLabel('Tus Listas')),
+            _buildPlaylistsList(context, library),
+            const SliverToBoxAdapter(child: SizedBox(height: 180)),
           ],
         ),
       ),
@@ -32,120 +31,110 @@ class PlaylistsScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context, LibraryProvider library) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
         child: Row(
           children: [
-            Text(
-              'Library',
-              style: GoogleFonts.manrope(
-                color: AppTheme.onSurface,
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-              ),
-            ),
+            Text('Listas',
+                style: GoogleFonts.manrope(
+                    color: AppTheme.onSurface,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5)),
             const Spacer(),
-            Container(
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.add_rounded,
-                    color: AppTheme.primary, size: 20),
-                onPressed: () => _showCreatePlaylistDialog(context, library),
-              ),
+            IconButton(
+              icon: const Icon(Icons.add_rounded,
+                  color: AppTheme.primary, size: 26),
+              onPressed: () => _showCreatePlaylistDialog(context, library),
             ),
           ],
         ),
       );
 
-  Widget _buildBentoGrid(
-      LibraryProvider library, AudioProvider audio, BuildContext context) {
+  // ── Tarjetas grandes (similar a Samsung Music) ────────────────────────────
+  Widget _buildTopCards(BuildContext context, LibraryProvider library) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Curated Essentials',
-            style: GoogleFonts.manrope(
-              color: AppTheme.onSurface,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Bento grid — exactly like the HTML
+          // Fila superior: Recién añadidas + Más escuchadas
           SizedBox(
-            height: 380,
+            height: 130,
             child: Row(
               children: [
-                // Left column — tall favorites card
                 Expanded(
-                  child: _BentoCard(
-                    title: 'Favorites',
-                    subtitle: '${library.favorites.length} tracks',
-                    label: 'Core Collection',
-                    icon: Icons.favorite_rounded,
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF2D1B69), Color(0xFF0D0D0D)],
-                    ),
-                    onTap: () {
-                      if (library.favorites.isNotEmpty) {
-                        audio.playSong(
-                            library.favorites.first, library.favorites, 0);
-                      }
-                    },
+                  child: _TopCard(
+                    title: 'Recién\nañadidas',
+                    count: library.recentlyAdded.length,
+                    icon: Icons.new_releases_rounded,
+                    colors: const [Color(0xFF1A1040), Color(0xFF2D1B69)],
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongListScreen(
+                            title: 'Recién añadidas',
+                            songs: library.recentlyAdded,
+                          ),
+                        )),
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Right column — two stacked cards
                 Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: _BentoCard(
-                          title: 'Recently\nPlayed',
-                          subtitle: '',
-                          label: '',
-                          icon: Icons.play_circle_rounded,
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFF1A0A00), Color(0xFF3D1A00)],
+                  child: _TopCard(
+                    title: 'Más\nescuchadas',
+                    count: library.mostPlayed.length,
+                    icon: Icons.trending_up_rounded,
+                    colors: const [Color(0xFF0A1A00), Color(0xFF1A3A00)],
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongListScreen(
+                            title: 'Más escuchadas',
+                            songs: library.mostPlayed,
                           ),
-                          onTap: () {
-                            if (library.recentlyPlayed.isNotEmpty) {
-                              audio.playSong(library.recentlyPlayed.first,
-                                  library.recentlyPlayed, 0);
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: _BentoCard(
-                          title: 'All Songs',
-                          subtitle: '${library.totalSongs} tracks',
-                          label: 'Updated now',
-                          icon: Icons.trending_up_rounded,
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFF0A1628), Color(0xFF1B2C4D)],
+                        )),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Fila inferior: Favoritos + Recientes
+          SizedBox(
+            height: 130,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _TopCard(
+                    title: 'Favoritos',
+                    count: library.favorites.length,
+                    icon: Icons.favorite_rounded,
+                    colors: const [Color(0xFF3D0010), Color(0xFF7F1D1D)],
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongListScreen(
+                            title: 'Favoritos',
+                            songs: library.favorites,
                           ),
-                          onTap: () {
-                            if (library.songs.isNotEmpty) {
-                              audio.playSong(
-                                  library.songs.first, library.songs, 0);
-                            }
-                          },
-                        ),
-                      ),
-                    ],
+                        )),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _TopCard(
+                    title: 'Escuchadas\nrecientemente',
+                    count: library.recentlyPlayed.length,
+                    icon: Icons.history_rounded,
+                    colors: const [Color(0xFF0A1A28), Color(0xFF0A3050)],
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongListScreen(
+                            title: 'Escuchadas recientemente',
+                            songs: library.recentlyPlayed,
+                          ),
+                        )),
                   ),
                 ),
               ],
@@ -156,98 +145,88 @@ class PlaylistsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCollectionsHeader() => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Your Collections',
-              style: GoogleFonts.manrope(
+  Widget _buildSectionLabel(String label) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: Text(label,
+            style: GoogleFonts.manrope(
                 color: AppTheme.onSurface,
                 fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Organized by your listening patterns',
-              style: GoogleFonts.manrope(
-                  color: AppTheme.onSurfaceVariant, fontSize: 12),
-            ),
-          ],
-        ),
+                fontWeight: FontWeight.w800)),
       );
 
-  SliverList _buildCollections(LibraryProvider library, AudioProvider audio) {
-    final List<_CollectionItem> collections = [
-      _CollectionItem('Favorites', '${library.favorites.length} tracks',
-          Icons.favorite_rounded,
-          songs: library.favorites),
-      _CollectionItem('Recently Played',
-          '${library.recentlyPlayed.length} tracks', Icons.history_rounded,
-          songs: library.recentlyPlayed),
-      ...library.playlists.map((p) => _CollectionItem(
-            p.playlist,
-            '${p.numOfSongs} tracks',
-            Icons.playlist_play_rounded,
-            playlistId: p.id,
-          )),
-    ];
+  // ── Lista de playlists personalizadas ─────────────────────────────────────
+  SliverList _buildPlaylistsList(
+      BuildContext context, LibraryProvider library) {
+    if (library.playlists.isEmpty) {
+      return SliverList(
+        delegate: SliverChildListDelegate([
+          Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(children: [
+              const Icon(Icons.playlist_add_rounded,
+                  color: AppTheme.outline, size: 56),
+              const SizedBox(height: 16),
+              Text('Aún no tienes listas',
+                  style: GoogleFonts.manrope(
+                      color: AppTheme.onSurfaceVariant, fontSize: 16)),
+              const SizedBox(height: 8),
+              Text('Toca + arriba para crear una',
+                  style: GoogleFonts.manrope(
+                      color: AppTheme.outline, fontSize: 13)),
+            ]),
+          ),
+        ]),
+      );
+    }
 
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (ctx, i) {
-          final c = collections[i];
+          final pl = library.playlists[i];
+          final songs = library.getSongsForPlaylist(pl.id);
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: ListTile(
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
-              hoverColor: Colors.white.withValues(alpha: 0.05),
+              tileColor: AppTheme.surfaceContainerLow,
               leading: Container(
-                width: 56,
-                height: 56,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(c.icon, color: AppTheme.primary),
+                    color: AppTheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.playlist_play_rounded,
+                    color: AppTheme.primary),
               ),
-              title: Text(
-                c.title,
-                style: GoogleFonts.manrope(
-                  color: AppTheme.onSurface,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              subtitle: Text(
-                c.subtitle,
-                style: GoogleFonts.manrope(
-                    color: AppTheme.onSurfaceVariant, fontSize: 12),
-              ),
+              title: Text(pl.name,
+                  style: GoogleFonts.manrope(
+                      color: AppTheme.onSurface,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700)),
+              subtitle: Text('${songs.length} canciones',
+                  style: GoogleFonts.manrope(
+                      color: AppTheme.onSurfaceVariant, fontSize: 12)),
               trailing: IconButton(
                 icon: const Icon(Icons.more_vert_rounded,
                     color: AppTheme.onSurfaceVariant),
-                onPressed: c.playlistId != null
-                    ? () => _showPlaylistOptions(
-                        ctx, library, c.playlistId!, c.title)
-                    : null,
+                onPressed: () => _showPlaylistOptions(ctx, library, pl),
               ),
-              onTap: () {
-                if (c.songs != null && c.songs!.isNotEmpty) {
-                  audio.playSong(c.songs!.first, c.songs!, 0);
-                } else if (c.playlistId != null) {
-                  _openPlaylist(ctx, library, c.playlistId!, c.title);
-                }
-              },
+              onTap: () => Navigator.push(
+                  ctx,
+                  MaterialPageRoute(
+                    builder: (_) => SongListScreen(
+                      title: pl.name,
+                      songs: songs,
+                      playlistId: pl.id,
+                    ),
+                  )),
             ),
           );
         },
-        childCount: collections.length,
+        childCount: library.playlists.length,
       ),
     );
   }
@@ -259,25 +238,27 @@ class PlaylistsScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceContainerHigh,
-        title: Text('New Playlist',
+        title: Text('Nueva Lista',
             style: GoogleFonts.manrope(color: AppTheme.onSurface)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           style: GoogleFonts.manrope(color: AppTheme.onSurface),
           decoration: InputDecoration(
-            hintText: 'Playlist name',
+            hintText: 'Nombre de la lista',
             hintStyle: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant),
             enabledBorder: const UnderlineInputBorder(
                 borderSide: BorderSide(color: AppTheme.outline)),
+            focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: AppTheme.primary)),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant)),
-          ),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar',
+                  style:
+                      GoogleFonts.manrope(color: AppTheme.onSurfaceVariant))),
           TextButton(
             onPressed: () {
               if (ctrl.text.trim().isNotEmpty) {
@@ -285,7 +266,7 @@ class PlaylistsScreen extends StatelessWidget {
                 Navigator.pop(ctx);
               }
             },
-            child: Text('Create',
+            child: Text('Crear',
                 style: GoogleFonts.manrope(
                     color: AppTheme.primary, fontWeight: FontWeight.bold)),
           ),
@@ -295,7 +276,7 @@ class PlaylistsScreen extends StatelessWidget {
   }
 
   void _showPlaylistOptions(
-      BuildContext context, LibraryProvider library, int id, String name) {
+      BuildContext context, LibraryProvider library, CustomPlaylist pl) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
@@ -304,31 +285,40 @@ class PlaylistsScreen extends StatelessWidget {
       builder: (ctx) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 12),
-          Text(name,
-              style: GoogleFonts.manrope(
-                  color: AppTheme.onSurface,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16)),
-          const Divider(height: 32),
+          Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              decoration: BoxDecoration(
+                  color: AppTheme.outline,
+                  borderRadius: BorderRadius.circular(2))),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(pl.name,
+                style: GoogleFonts.manrope(
+                    color: AppTheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
+          ),
+          const Divider(height: 1, color: AppTheme.surfaceVariant),
           ListTile(
             leading: const Icon(Icons.edit_rounded, color: AppTheme.primary),
-            title: Text('Rename Playlist',
+            title: Text('Renombrar',
                 style: GoogleFonts.manrope(
                     color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
             onTap: () {
               Navigator.pop(ctx);
-              _showRenamePlaylistDialog(context, library, id, name);
+              _showRenameDialog(context, library, pl);
             },
           ),
           ListTile(
             leading: const Icon(Icons.delete_outline_rounded,
                 color: Colors.redAccent),
-            title: Text('Delete Playlist',
+            title: Text('Eliminar lista',
                 style: GoogleFonts.manrope(
                     color: Colors.redAccent, fontWeight: FontWeight.bold)),
             onTap: () {
-              library.deletePlaylist(id);
+              library.deletePlaylist(pl.id);
               Navigator.pop(ctx);
             },
           ),
@@ -338,40 +328,41 @@ class PlaylistsScreen extends StatelessWidget {
     );
   }
 
-  void _showRenamePlaylistDialog(BuildContext context, LibraryProvider library,
-      int id, String currentName) {
-    final ctrl = TextEditingController(text: currentName);
+  void _showRenameDialog(
+      BuildContext context, LibraryProvider library, CustomPlaylist pl) {
+    final ctrl = TextEditingController(text: pl.name);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceContainerHigh,
-        title: Text('Rename Playlist',
+        title: Text('Renombrar Lista',
             style: GoogleFonts.manrope(color: AppTheme.onSurface)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           style: GoogleFonts.manrope(color: AppTheme.onSurface),
           decoration: InputDecoration(
-            hintText: 'Playlist name',
             hintStyle: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant),
             enabledBorder: const UnderlineInputBorder(
                 borderSide: BorderSide(color: AppTheme.outline)),
+            focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: AppTheme.primary)),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant)),
-          ),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar',
+                  style:
+                      GoogleFonts.manrope(color: AppTheme.onSurfaceVariant))),
           TextButton(
             onPressed: () {
               if (ctrl.text.trim().isNotEmpty) {
-                library.renamePlaylist(id, ctrl.text.trim());
+                library.renamePlaylist(pl.id, ctrl.text.trim());
                 Navigator.pop(ctx);
               }
             },
-            child: Text('Rename',
+            child: Text('Guardar',
                 style: GoogleFonts.manrope(
                     color: AppTheme.primary, fontWeight: FontWeight.bold)),
           ),
@@ -379,42 +370,21 @@ class PlaylistsScreen extends StatelessWidget {
       ),
     );
   }
-
-  void _openPlaylist(
-      BuildContext context, LibraryProvider library, int id, String name) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PlaylistDetailScreen(
-          playlistId: id,
-          playlistName: name,
-        ),
-      ),
-    );
-  }
 }
 
-class _CollectionItem {
-  final String title, subtitle;
+// ── Tarjeta superior ──────────────────────────────────────────────────────────
+class _TopCard extends StatelessWidget {
+  final String title;
+  final int count;
   final IconData icon;
-  final List<SongModel>? songs;
-  final int? playlistId;
-  const _CollectionItem(this.title, this.subtitle, this.icon,
-      {this.songs, this.playlistId});
-}
-
-class _BentoCard extends StatelessWidget {
-  final String title, subtitle, label;
-  final IconData icon;
-  final Gradient gradient;
+  final List<Color> colors;
   final VoidCallback onTap;
 
-  const _BentoCard({
+  const _TopCard({
     required this.title,
-    required this.subtitle,
-    required this.label,
+    required this.count,
     required this.icon,
-    required this.gradient,
+    required this.colors,
     required this.onTap,
   });
 
@@ -422,66 +392,39 @@ class _BentoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+      child: Container(
         decoration: BoxDecoration(
-          gradient: gradient,
+          gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: colors),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withAlpha(13)),
         ),
+        padding: const EdgeInsets.all(14),
         child: Stack(
           children: [
             Positioned(
-              right: -10,
-              bottom: -10,
-              child:
-                  Icon(icon, color: Colors.white.withOpacity(0.07), size: 80),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (label.isNotEmpty) ...[
-                    Row(
-                      children: [
-                        Icon(icon, color: AppTheme.primary, size: 12),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            label.toUpperCase(),
-                            style: GoogleFonts.manrope(
-                              color: AppTheme.primary,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  Text(
-                    title,
+                right: -8,
+                bottom: -12,
+                child: Icon(icon, color: Colors.white.withAlpha(18), size: 70)),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(icon, color: colors.last.withAlpha(200), size: 18),
+                const SizedBox(height: 6),
+                Text(title,
                     style: GoogleFonts.manrope(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      height: 1.1,
-                    ),
-                  ),
-                  if (subtitle.isNotEmpty)
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.manrope(
-                        color: AppTheme.onSurfaceVariant,
-                        fontSize: 11,
-                      ),
-                    ),
-                ],
-              ),
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1)),
+                const SizedBox(height: 2),
+                Text('$count canciones',
+                    style: GoogleFonts.manrope(
+                        color: Colors.white.withAlpha(180), fontSize: 11)),
+              ],
             ),
           ],
         ),

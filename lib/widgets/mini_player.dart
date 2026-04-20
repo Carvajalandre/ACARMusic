@@ -11,160 +11,166 @@ class MiniPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final audio = context.read<AudioProvider>();
+    // Solo escucha cambios de canción (id), no de posición
     final songId =
         context.select<AudioProvider, int?>((a) => a.currentSong?.id);
+    final audio = context.read<AudioProvider>();
     final song = audio.currentSong;
-
     if (songId == null || song == null) return const SizedBox.shrink();
 
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const PlayerScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              const begin = Offset(0.0, 1.0);
-              const end = Offset.zero;
-              const curve = Curves.easeOutCubic;
-              var tween =
-                  Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-              return SlideTransition(
-                  position: animation.drive(tween), child: child);
-            },
+      onTap: () => Navigator.of(context).push(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const PlayerScreen(),
+          transitionsBuilder: (_, animation, __, child) => SlideTransition(
+            position: Tween(begin: const Offset(0, 1), end: Offset.zero)
+                .chain(CurveTween(curve: Curves.easeOutCubic))
+                .animate(animation),
+            child: child,
           ),
-        );
-      },
+        ),
+      ),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceContainerHigh.withValues(alpha: 0.9),
+          color: AppTheme.surfaceContainerHigh.withAlpha(230),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          border: Border.all(color: Colors.white.withAlpha(13)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
+                color: Colors.black.withAlpha(128),
+                blurRadius: 20,
+                offset: const Offset(0, 4))
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: RepaintBoundary(
-                    child: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: QueryArtworkWidget(
-                        id: song.id,
-                        type: ArtworkType.AUDIO,
-                        artworkFit: BoxFit.cover,
-                        artworkWidth: 48,
-                        artworkHeight: 48,
-                        nullArtworkWidget: Container(
-                          color: AppTheme.surfaceContainerHigh,
-                          child: const Icon(Icons.music_note_rounded,
-                              color: AppTheme.onSurfaceVariant),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Row(
+                children: [
+                  // Portada
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: RepaintBoundary(
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: QueryArtworkWidget(
+                          id: song.id,
+                          type: ArtworkType.AUDIO,
+                          artworkFit: BoxFit.cover,
+                          artworkWidth: 48,
+                          artworkHeight: 48,
+                          keepOldArtwork: true,
+                          nullArtworkWidget: Container(
+                            color: AppTheme.surfaceContainerHigh,
+                            child: const Icon(Icons.music_note_rounded,
+                                color: AppTheme.onSurfaceVariant),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        song.title ?? 'Unknown',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.manrope(
-                          color: AppTheme.onSurface,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        song.artist ?? '',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.manrope(
-                          color: AppTheme.onSurfaceVariant,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 12),
+                  // Título y artista
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(song.title ?? 'Unknown',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.manrope(
+                                color: AppTheme.onSurface,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700)),
+                        Text(song.artist ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.manrope(
+                                color: AppTheme.onSurfaceVariant,
+                                fontSize: 11)),
+                      ],
+                    ),
                   ),
-                ),
-                IconButton(
-                  onPressed: audio.skipPrevious,
-                  icon: const Icon(Icons.skip_previous_rounded,
-                      color: AppTheme.onSurface),
-                ),
-                Selector<AudioProvider, bool>(
-                  selector: (_, a) => a.isPlaying,
-                  builder: (context, isPlaying, child) => GestureDetector(
-                    onTap: audio.togglePlayPause,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: AppTheme.tertiary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: AppTheme.onTertiary,
+                  // Controles — solo escuchan isPlaying
+                  IconButton(
+                    onPressed: audio.skipPrevious,
+                    icon: const Icon(Icons.skip_previous_rounded,
+                        color: AppTheme.onSurface),
+                    padding: EdgeInsets.zero,
+                  ),
+                  Selector<AudioProvider, bool>(
+                    selector: (_, a) => a.isPlaying,
+                    builder: (_, isPlaying, __) => GestureDetector(
+                      onTap: audio.togglePlayPause,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                            color: AppTheme.tertiary, shape: BoxShape.circle),
+                        child: Icon(
+                            isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            color: AppTheme.onTertiary),
                       ),
                     ),
                   ),
-                ),
-                IconButton(
-                  onPressed: audio.skipNext,
-                  icon: const Icon(Icons.skip_next_rounded,
-                      color: AppTheme.onSurface),
-                ),
-              ],
+                  IconButton(
+                    onPressed: audio.skipNext,
+                    icon: const Icon(Icons.skip_next_rounded,
+                        color: AppTheme.onSurface),
+                    padding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            // Mini progress bar - uses Consumer to only rebuild this part
-            Container(
-              height: 2,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceVariant.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(1),
-              ),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Consumer<AudioProvider>(
-                  builder: (context, audioProv, child) {
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        return Container(
-                          width: constraints.maxWidth *
-                              audioProv.progress.clamp(0.0, 1.0),
-                          color: AppTheme.tertiary,
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
+            // Barra de progreso — usa ValueListenableBuilder, NO Consumer
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: _ProgressBar(audio: audio),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ProgressBar extends StatelessWidget {
+  final AudioProvider audio;
+  const _ProgressBar({required this.audio});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<Duration>(
+      valueListenable: audio.positionNotifier,
+      builder: (_, pos, __) {
+        final dur = audio.durationNotifier.value;
+        final progress = dur.inMilliseconds > 0
+            ? (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0)
+            : 0.0;
+        return Container(
+          height: 3,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceVariant.withAlpha(128),
+            borderRadius: BorderRadius.circular(2),
+          ),
+          alignment: Alignment.centerLeft,
+          child: LayoutBuilder(
+            builder: (_, c) => Container(
+              width: c.maxWidth * progress,
+              decoration: BoxDecoration(
+                color: AppTheme.tertiary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
