@@ -2,13 +2,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:audio_session/audio_session.dart';
+import '../audio/audio_handler.dart';
 
 enum AppRepeatState { off, all, one }
 
 class AudioProvider extends ChangeNotifier {
-  final AudioPlayer _player = AudioPlayer();
-  AudioSession? _session;
+  final ACARMusicHandler _handler;
+
+  // Acceso interno al player (que vive en el handler)
+  AudioPlayer get _player => _handler.player;
 
   List<SongModel> _queue = [];
   int _currentIndex = -1;
@@ -16,7 +18,7 @@ class AudioProvider extends ChangeNotifier {
   AppRepeatState _repeatMode = AppRepeatState.off;
   bool _isPlaying = false;
 
-  // ── ValueNotifiers para posición (NO disparan rebuilds del árbol Provider) ──
+  // ── ValueNotifiers para posición/duración (sin rebuilds masivos) ──────────
   final ValueNotifier<Duration> positionNotifier = ValueNotifier(Duration.zero);
   final ValueNotifier<Duration> durationNotifier = ValueNotifier(Duration.zero);
 
@@ -28,51 +30,58 @@ class AudioProvider extends ChangeNotifier {
   int get sleepTimerMinutes => _sleepTimerMinutes;
 
   // ── Getters ────────────────────────────────────────────────────────────────
-  List<SongModel> get queue => _queue;
-  int get currentIndex => _currentIndex;
-  bool get isPlaying => _isPlaying;
-  bool get isShuffleOn => _isShuffleOn;
-  AppRepeatState get repeatMode => _repeatMode;
-  Duration get position => positionNotifier.value;
-  Duration get duration => durationNotifier.value;
+  List<SongModel> get queue        => _queue;
+  int get currentIndex             => _currentIndex;
+  bool get isPlaying               => _isPlaying;
+  bool get isShuffleOn             => _isShuffleOn;
+  AppRepeatState get repeatMode    => _repeatMode;
+  Duration get position            => positionNotifier.value;
+  Duration get duration            => durationNotifier.value;
 
   SongModel? get currentSong =>
       _currentIndex >= 0 && _currentIndex < _queue.length
           ? _queue[_currentIndex]
           : null;
 
-  AudioProvider() {
+  AudioProvider(this._handler) {
     _init();
+    // Inyecta los callbacks de navegación en el handler
+    // (para que los botones de la notificación funcionen)
+    _handler.onSkipToNext     = skipNext;
+    _handler.onSkipToPrevious = skipPrevious;
   }
 
-  Future<void> _init() async {
-    try {
-      _session = await AudioSession.instance;
-      await _session!.configure(const AudioSessionConfiguration.music());
-      await _session!.setActive(true);
+  void _init() {
+    // Posición y duración → ValueNotifier (sin notifyListeners masivos)
+    _player.positionStream.listen((pos) => positionNotifier.value = pos);
+    _player.durationStream.listen(
+        (dur) => durationNotifier.value = dur ?? Duration.zero);
 
-      // Posicion y duracion van a ValueNotifier: NO llaman notifyListeners()
-      _player.positionStream.listen((pos) => positionNotifier.value = pos);
-      _player.durationStream.listen((dur) => durationNotifier.value = dur ?? Duration.zero);
-
-      _player.playerStateStream.listen((state) {
-        final wasPlaying = _isPlaying;
-        _isPlaying = state.playing;
-        if (wasPlaying != _isPlaying) notifyListeners();
-        if (state.processingState == ProcessingState.completed) _onTrackCompleted();
-      });
-    } catch (e) {
-      debugPrint('Error inicializando audio: $e');
-    }
+    // Estado play/pause
+    _player.playerStateStream.listen((state) {
+      final wasPlaying = _isPlaying;
+      _isPlaying = state.playing;
+      if (wasPlaying != _isPlaying) notifyListeners();
+      if (state.processingState == ProcessingState.completed) {
+        _onTrackCompleted();
+      }
+    });
   }
+
+  // ─── Reproducción ─────────────────────────────────────────────────────────
 
   Future<void> playSong(SongModel song, List<SongModel> queue, int index) async {
     _queue = queue;
     _currentIndex = index;
-    notifyListeners();
+    notifyListeners(); // Canción nueva → rebuild de portada/título
+
     try {
       final path = song.data;
       if (path == null || path.isEmpty) return;
+
+      // Actualiza la notificación del sistema con la nueva canción
+      _handler.setCurrentSong(song);
+
       await _player.setFilePath(path);
       await _player.play();
       _isPlaying = true;
@@ -88,8 +97,11 @@ class AudioProvider extends ChangeNotifier {
   Future<void> seekTo(double progress) async {
     final dur = durationNotifier.value;
     if (dur.inMilliseconds == 0) return;
-    await _player.seek(Duration(milliseconds: (progress * dur.inMilliseconds).round()));
+    await _player.seek(
+        Duration(milliseconds: (progress * dur.inMilliseconds).round()));
   }
+
+  // ─── Navegación ───────────────────────────────────────────────────────────
 
   Future<void> skipNext() async {
     if (_queue.isEmpty) return;
@@ -135,7 +147,12 @@ class AudioProvider extends ChangeNotifier {
     }
   }
 
-  void toggleShuffle() { _isShuffleOn = !_isShuffleOn; notifyListeners(); }
+  // ─── Modos ────────────────────────────────────────────────────────────────
+
+  void toggleShuffle() {
+    _isShuffleOn = !_isShuffleOn;
+    notifyListeners();
+  }
 
   void toggleRepeat() {
     _repeatMode = switch (_repeatMode) {
@@ -146,7 +163,8 @@ class AudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Sleep Timer ────────────────────────────────────────────────────────────
+  // ─── Sleep Timer ──────────────────────────────────────────────────────────
+
   void setSleepTimer(int minutes) {
     _sleepTimer?.cancel();
     _countdownTimer?.cancel();
@@ -164,13 +182,16 @@ class AudioProvider extends ChangeNotifier {
       });
       _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         final remaining = endTime.difference(DateTime.now());
-        sleepRemainingNotifier.value = remaining.isNegative ? Duration.zero : remaining;
+        sleepRemainingNotifier.value =
+            remaining.isNegative ? Duration.zero : remaining;
       });
     }
     notifyListeners();
   }
 
   void cancelSleepTimer() => setSleepTimer(0);
+
+  // ─── Utilidades ───────────────────────────────────────────────────────────
 
   String formatDuration(Duration d) {
     final m = d.inMinutes.toString();
@@ -185,7 +206,6 @@ class AudioProvider extends ChangeNotifier {
     positionNotifier.dispose();
     durationNotifier.dispose();
     sleepRemainingNotifier.dispose();
-    _player.dispose();
     super.dispose();
   }
 }

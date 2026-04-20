@@ -8,6 +8,8 @@ class TrackTile extends StatelessWidget {
   final bool isPlaying;
   final VoidCallback onTap;
   final VoidCallback? onMore;
+  // Permite pasar un widget personalizado en lugar del ícono de "más" (para drag handles)
+  final Widget? trailingOverride;
 
   const TrackTile({
     super.key,
@@ -15,6 +17,7 @@ class TrackTile extends StatelessWidget {
     required this.isPlaying,
     required this.onTap,
     this.onMore,
+    this.trailingOverride,
   });
 
   @override
@@ -41,12 +44,12 @@ class TrackTile extends StatelessWidget {
                     artworkFit: BoxFit.cover,
                     artworkWidth: 52,
                     artworkHeight: 52,
+                    keepOldArtwork: true,
                     nullArtworkWidget: Container(
                       color: AppTheme.surfaceContainerHigh,
                       child: const Center(
-                        child: Icon(Icons.music_note_rounded,
-                            color: AppTheme.onSurfaceVariant),
-                      ),
+                          child: Icon(Icons.music_note_rounded,
+                              color: AppTheme.onSurfaceVariant)),
                     ),
                   ),
                 ),
@@ -55,7 +58,7 @@ class TrackTile extends StatelessWidget {
             if (isPlaying)
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withAlpha(128),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Center(
@@ -77,19 +80,18 @@ class TrackTile extends StatelessWidget {
         ),
       ),
       subtitle: Text(
-        song.artist ?? 'Unknown Artist',
+        song.artist ?? 'Artista desconocido',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: GoogleFonts.manrope(
-          color: AppTheme.onSurfaceVariant,
-          fontSize: 12,
-        ),
+        style:
+            GoogleFonts.manrope(color: AppTheme.onSurfaceVariant, fontSize: 12),
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.more_horiz_rounded,
-            color: AppTheme.onSurfaceVariant),
-        onPressed: onMore,
-      ),
+      trailing: trailingOverride ??
+          IconButton(
+            icon: const Icon(Icons.more_horiz_rounded,
+                color: AppTheme.onSurfaceVariant),
+            onPressed: onMore,
+          ),
     );
   }
 }

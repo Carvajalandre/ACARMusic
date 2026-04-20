@@ -1,44 +1,45 @@
 name: acar_music
 description: ACARMusic - Reproductor de música local personal
-
+ 
 publish_to: 'none'
-
+ 
 version: 1.0.0+1
-
+ 
 environment:
   sdk: '>=3.3.0 <4.0.0'
-
+ 
 dependencies:
   flutter:
     sdk: flutter
-
+ 
   # Audio
   just_audio: ^0.9.40
+  audio_service: ^0.18.15   # ← Notificación + MediaSession del sistema
   audio_session: ^0.1.21
-
+ 
   # Media query (leer archivos locales del dispositivo)
   on_audio_query: ^2.9.0
-
+ 
   # State management
   provider: ^6.1.2
-
+ 
   # Permisos
   permission_handler: ^11.3.1
-
+ 
   # Persistencia
   shared_preferences: ^2.3.2
-
+ 
   # UI
   google_fonts: ^6.2.1
-
+ 
   # Extracción de colores de portadas ← NUEVO
   palette_generator: ^0.3.3+3
-
+ 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-
+ 
 flutter:
   uses-material-design: true
   assets:

@@ -22,30 +22,33 @@ class LibraryProvider extends ChangeNotifier {
   bool _hasPermission = false;
   String _searchQuery = '';
 
-  static const String _favoritesKey    = 'favorites_ids';
-  static const String _recentlyKey     = 'recently_played_ids';
-  static const String _playlistsKey    = 'custom_playlists_v2';
-  static const String _playCountsKey   = 'play_counts';
+  static const String _favoritesKey = 'favorites_ids';
+  static const String _recentlyKey = 'recently_played_ids';
+  static const String _playlistsKey = 'custom_playlists_v2';
+  static const String _playCountsKey = 'play_counts';
   static const int _maxRecently = 50;
 
-  List<SongModel> get songs          => _searchQuery.isEmpty ? _songs : _filteredSongs;
-  List<SongModel> get recentlyAdded  => _recentlyAdded;
-  List<AlbumModel> get albums        => _albums;
-  List<ArtistModel> get artists      => _artists;
-  List<SongModel> get favorites      => _favorites;
+  List<SongModel> get songs => _searchQuery.isEmpty ? _songs : _filteredSongs;
+  List<SongModel> get recentlyAdded => _recentlyAdded;
+  List<AlbumModel> get albums => _albums;
+  List<ArtistModel> get artists => _artists;
+  List<SongModel> get favorites => _favorites;
   List<SongModel> get recentlyPlayed => _recentlyPlayed;
   List<CustomPlaylist> get playlists => _playlists;
-  bool get isLoading      => _isLoading;
-  bool get hasPermission  => _hasPermission;
-  int get totalSongs      => _songs.length;
+  bool get isLoading => _isLoading;
+  bool get hasPermission => _hasPermission;
+  int get totalSongs => _songs.length;
 
   List<SongModel> get mostPlayed {
     final sorted = [..._songs];
-    sorted.sort((a, b) => (_playCounts[b.id] ?? 0).compareTo(_playCounts[a.id] ?? 0));
+    sorted.sort(
+        (a, b) => (_playCounts[b.id] ?? 0).compareTo(_playCounts[a.id] ?? 0));
     return sorted.where((s) => (_playCounts[s.id] ?? 0) > 0).take(50).toList();
   }
 
-  LibraryProvider() { _checkAndLoad(); }
+  LibraryProvider() {
+    _checkAndLoad();
+  }
 
   Future<void> _checkAndLoad() async {
     _hasPermission = await _requestPermission();
@@ -79,7 +82,7 @@ class LibraryProvider extends ChangeNotifier {
       );
       _songs = rawSongs.where((s) {
         final path = (s.data ?? '').toLowerCase();
-        final dur  = s.duration ?? 0;
+        final dur = s.duration ?? 0;
         return s.isMusic == true &&
             !path.contains('whatsapp') &&
             !path.contains('telegram') &&
@@ -90,7 +93,8 @@ class LibraryProvider extends ChangeNotifier {
 
       // Recién añadidas (las 50 más nuevas por fecha de modificación)
       final byDate = [..._songs];
-      byDate.sort((a, b) => (b.dateModified ?? 0).compareTo(a.dateModified ?? 0));
+      byDate
+          .sort((a, b) => (b.dateModified ?? 0).compareTo(a.dateModified ?? 0));
       _recentlyAdded = byDate.take(50).toList();
 
       _albums = await _audioQuery.queryAlbums(
@@ -153,14 +157,20 @@ class LibraryProvider extends ChangeNotifier {
     _searchQuery = query.toLowerCase().trim();
     _filteredSongs = _searchQuery.isEmpty
         ? []
-        : _songs.where((s) =>
-            (s.title?.toLowerCase().contains(_searchQuery) ?? false) ||
-            (s.artist?.toLowerCase().contains(_searchQuery) ?? false) ||
-            (s.album?.toLowerCase().contains(_searchQuery) ?? false)).toList();
+        : _songs
+            .where((s) =>
+                (s.title?.toLowerCase().contains(_searchQuery) ?? false) ||
+                (s.artist?.toLowerCase().contains(_searchQuery) ?? false) ||
+                (s.album?.toLowerCase().contains(_searchQuery) ?? false))
+            .toList();
     notifyListeners();
   }
 
-  void clearSearch() { _searchQuery = ''; _filteredSongs = []; notifyListeners(); }
+  void clearSearch() {
+    _searchQuery = '';
+    _filteredSongs = [];
+    notifyListeners();
+  }
 
   // ── Favoritos ─────────────────────────────────────────────────────────────
   void addToFavorites(SongModel song) {
@@ -181,7 +191,8 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<void> _saveFavorites() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_favoritesKey, _favorites.map((s) => s.id.toString()).toList());
+    await prefs.setStringList(
+        _favoritesKey, _favorites.map((s) => s.id.toString()).toList());
   }
 
   // ── Recientes ─────────────────────────────────────────────────────────────
@@ -197,7 +208,8 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<void> _saveRecentlyPlayed() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_recentlyKey, _recentlyPlayed.map((s) => s.id.toString()).toList());
+    await prefs.setStringList(
+        _recentlyKey, _recentlyPlayed.map((s) => s.id.toString()).toList());
   }
 
   // ── Conteo de reproducciones ──────────────────────────────────────────────
@@ -251,6 +263,16 @@ class LibraryProvider extends ChangeNotifier {
       _playlists[idx].songIds.remove(songId);
       _savePlaylists();
       notifyListeners();
+    }
+  }
+
+  /// Guarda el nuevo orden de canciones en una playlist (drag & drop)
+  void reorderPlaylist(String playlistId, List<int> newOrder) {
+    final idx = _playlists.indexWhere((p) => p.id == playlistId);
+    if (idx >= 0) {
+      _playlists[idx] = _playlists[idx].copyWith(songIds: newOrder);
+      _savePlaylists();
+      // No notifyListeners: la UI ya actualizó el estado local
     }
   }
 

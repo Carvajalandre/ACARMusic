@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:palette_generator/palette_generator.dart';
@@ -23,59 +22,47 @@ class _PlayerContent extends StatefulWidget {
 
 class _PlayerContentState extends State<_PlayerContent>
     with TickerProviderStateMixin {
-  Color _colorA = const Color(0xFF1A0A2E);
-  Color _colorB = const Color(0xFF0D0A20);
+  Color _colorA    = const Color(0xFF1A0A2E);
+  Color _colorB    = const Color(0xFF0D0A20);
   Color _glowColor = const Color(0xFF6D28D9);
-  int? _lastSongId;
+  int?  _lastSongId;
 
-  late final AnimationController _bgController;
-  late final Animation<double> _bgAnimation;
+  late final AnimationController _bgCtrl;
+  late final Animation<double>   _bgAnim;
 
   @override
   void initState() {
     super.initState();
-    _bgController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 6))
-          ..repeat(reverse: true);
-    _bgAnimation =
-        CurvedAnimation(parent: _bgController, curve: Curves.easeInOut);
+    _bgCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 6))
+      ..repeat(reverse: true);
+    _bgAnim = CurvedAnimation(parent: _bgCtrl, curve: Curves.easeInOut);
   }
 
   @override
-  void dispose() {
-    _bgController.dispose();
-    super.dispose();
-  }
+  void dispose() { _bgCtrl.dispose(); super.dispose(); }
 
   Future<void> _extractPalette(SongModel song) async {
     try {
-      final art = await OnAudioQuery().queryArtwork(song.id, ArtworkType.AUDIO,
-          format: ArtworkFormat.JPEG, size: 200);
-      if (art == null || art.isEmpty) {
-        _fallbackColor(song);
-        return;
-      }
-      final palette = await PaletteGenerator.fromImageProvider(MemoryImage(art),
-          size: const Size(200, 200), maximumColorCount: 8);
+      final art = await OnAudioQuery().queryArtwork(
+          song.id, ArtworkType.AUDIO, format: ArtworkFormat.JPEG, size: 200);
+      if (art == null || art.isEmpty) { _fallback(song); return; }
+      final palette = await PaletteGenerator.fromImageProvider(
+          MemoryImage(art), size: const Size(200, 200), maximumColorCount: 8);
       if (!mounted) return;
       setState(() {
-        _glowColor = palette.vibrantColor?.color ??
-            palette.dominantColor?.color ??
-            _glowColor;
-        _colorA = palette.dominantColor?.color?.withAlpha(180) ?? _colorA;
-        _colorB = palette.mutedColor?.color?.withAlpha(200) ?? _colorB;
+        _glowColor = palette.vibrantColor?.color ?? palette.dominantColor?.color ?? _glowColor;
+        _colorA    = palette.dominantColor?.color?.withAlpha(180) ?? _colorA;
+        _colorB    = palette.mutedColor?.color?.withAlpha(200)    ?? _colorB;
       });
-    } catch (_) {
-      _fallbackColor(song);
-    }
+    } catch (_) { _fallback(song); }
   }
 
-  void _fallbackColor(SongModel song) {
+  void _fallback(SongModel song) {
     final hue = ((song.albumId ?? song.id) * 47) % 360;
     if (!mounted) return;
     setState(() {
-      _colorA = HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.15).toColor();
-      _colorB = HSLColor.fromAHSL(1, (hue + 40) % 360, 0.6, 0.10).toColor();
+      _colorA    = HSLColor.fromAHSL(1, hue.toDouble(), 0.7, 0.15).toColor();
+      _colorB    = HSLColor.fromAHSL(1, (hue + 40) % 360, 0.6, 0.10).toColor();
       _glowColor = HSLColor.fromAHSL(1, hue.toDouble(), 0.8, 0.4).toColor();
     });
   }
@@ -86,23 +73,20 @@ class _PlayerContentState extends State<_PlayerContent>
       selector: (_, a) => a.currentSong,
       builder: (context, song, _) {
         if (song == null) return const SizedBox.shrink();
-        if (_lastSongId != song.id) {
-          _lastSongId = song.id;
-          _extractPalette(song);
-        }
+        if (_lastSongId != song.id) { _lastSongId = song.id; _extractPalette(song); }
 
         return OrientationBuilder(
           builder: (context, orientation) => AnimatedBuilder(
-            animation: _bgAnimation,
+            animation: _bgAnim,
             builder: (context, child) {
-              final t = _bgAnimation.value;
+              final t  = _bgAnim.value;
               final c1 = Color.lerp(_colorA, _colorB, t)!;
               final c2 = Color.lerp(_colorB, Colors.black, t)!;
               return Container(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
-                    center: Alignment.lerp(const Alignment(-0.5, -0.6),
-                        const Alignment(0.5, 0.3), t)!,
+                    center: Alignment.lerp(
+                        const Alignment(-0.5, -0.6), const Alignment(0.5, 0.3), t)!,
                     radius: 1.3,
                     colors: [c1, c2, Colors.black],
                     stops: const [0.0, 0.55, 1.0],
@@ -120,12 +104,13 @@ class _PlayerContentState extends State<_PlayerContent>
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VERTICAL — vinilo + controles apilados
+  // ═══════════════════════════════════════════════════════════════════════════
   Widget _buildPortrait(BuildContext context, SongModel song) {
-    final audio = context.read<AudioProvider>();
-    // ✅ watch solo para isFavorite (reconstruye cuando cambia favoritos)
-    final isFav =
-        context.select<LibraryProvider, bool>((l) => l.isFavorite(song));
+    final audio   = context.read<AudioProvider>();
     final library = context.read<LibraryProvider>();
+    final isFav   = context.select<LibraryProvider, bool>((l) => l.isFavorite(song));
 
     return SafeArea(
       child: Column(
@@ -139,6 +124,7 @@ class _PlayerContentState extends State<_PlayerContent>
                   const SizedBox(height: 8),
                   _buildSongTitle(song),
                   const SizedBox(height: 28),
+                  // Vinilo giratorio
                   Selector<AudioProvider, bool>(
                     selector: (_, a) => a.isPlaying,
                     builder: (_, isPlaying, __) => Center(
@@ -166,51 +152,111 @@ class _PlayerContentState extends State<_PlayerContent>
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HORIZONTAL — inspirado en Samsung Music:
+  //   izquierda: portada cuadrada redondeada
+  //   derecha:   título, controles, barra
+  // ═══════════════════════════════════════════════════════════════════════════
   Widget _buildLandscape(BuildContext context, SongModel song) {
-    final audio = context.read<AudioProvider>();
-    final isFav =
-        context.select<LibraryProvider, bool>((l) => l.isFavorite(song));
+    final audio   = context.read<AudioProvider>();
     final library = context.read<LibraryProvider>();
+    final isFav   = context.select<LibraryProvider, bool>((l) => l.isFavorite(song));
 
     return SafeArea(
       child: Row(
         children: [
-          Expanded(
-            flex: 5,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildHeaderLandscape(context),
-                    const SizedBox(height: 8),
-                    Selector<AudioProvider, bool>(
-                      selector: (_, a) => a.isPlaying,
-                      builder: (_, isPlaying, __) => VinylRecord(
-                          isPlaying: isPlaying,
-                          albumId: song.albumId,
-                          glowColor: _glowColor),
-                    ),
-                  ]),
+          // ── Portada izquierda ──────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Center(
+              child: _LandscapeAlbumArt(song: song, glowColor: _glowColor),
             ),
           ),
+
+          // ── Controles derecha ──────────────────────────────────────
           Expanded(
-            flex: 6,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 16, 24, 16),
+              padding: const EdgeInsets.fromLTRB(0, 16, 24, 16),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSongTitle(song),
-                  const SizedBox(height: 16),
-                  _buildAlbumInfo(song),
-                  const SizedBox(height: 20),
+                  // Fila superior: bajar + cola
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 28, color: AppTheme.onSurface),
+                      ),
+                      Row(children: [
+                        IconButton(
+                          onPressed: () {},
+                          icon: const Icon(Icons.queue_music_rounded,
+                              color: AppTheme.onSurface, size: 22),
+                        ),
+                        IconButton(
+                          onPressed: () {},
+                          icon: const Icon(Icons.more_vert_rounded,
+                              color: AppTheme.onSurface, size: 22),
+                        ),
+                      ]),
+                    ],
+                  ),
+
+                  const Spacer(),
+
+                  // Título + artista
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(song.title ?? 'Pista desconocida',
+                          textAlign: TextAlign.center,
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: AppTheme.onSurface, fontSize: 22,
+                              fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+                      const SizedBox(height: 4),
+                      Text(song.artist ?? 'Artista desconocido',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: AppTheme.onSurfaceVariant,
+                              fontSize: 14, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Botones like / lista
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () => isFav
+                            ? library.removeFromFavorites(song)
+                            : library.addToFavorites(song),
+                        icon: Icon(
+                          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          color: isFav ? Colors.pinkAccent : AppTheme.onSurfaceVariant,
+                          size: 22,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => _showAddToPlaylistSheet(context, library, song),
+                        icon: const Icon(Icons.playlist_add_rounded,
+                            color: AppTheme.onSurfaceVariant, size: 22),
+                      ),
+                    ],
+                  ),
+
+                  const Spacer(),
+
+                  // Barra de progreso
                   _buildProgressBar(audio),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+
+                  // Controles
                   _buildControls(audio),
-                  const SizedBox(height: 16),
-                  _buildUtilityRow(context, song, isFav, library),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -220,84 +266,51 @@ class _PlayerContentState extends State<_PlayerContent>
     );
   }
 
+  // ─── Widgets compartidos ─────────────────────────────────────────────────
+
   Widget _buildHeader(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
         child: Row(
           children: [
             IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                    size: 32, color: AppTheme.onSurface)),
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                  size: 32, color: AppTheme.onSurface)),
             const Expanded(
-                child: Text('ACARMusic',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: AppTheme.onSurface,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800))),
+              child: Text('ACARMusic',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.onSurface,
+                      fontSize: 17, fontWeight: FontWeight.w800))),
             IconButton(
                 onPressed: () {},
-                icon: const Icon(Icons.queue_music_rounded,
-                    color: AppTheme.onSurface)),
+                icon: const Icon(Icons.queue_music_rounded, color: AppTheme.onSurface)),
             IconButton(
                 onPressed: () {},
-                icon: const Icon(Icons.more_vert_rounded,
-                    color: AppTheme.onSurface)),
+                icon: const Icon(Icons.more_vert_rounded, color: AppTheme.onSurface)),
           ],
         ),
-      );
-
-  Widget _buildHeaderLandscape(BuildContext context) => Row(
-        children: [
-          IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                  size: 28, color: AppTheme.onSurface)),
-          const Text('ACARMusic',
-              style: TextStyle(
-                  color: AppTheme.onSurface,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800)),
-          const Spacer(),
-          IconButton(
-              onPressed: () {},
-              icon: const Icon(Icons.queue_music_rounded,
-                  color: AppTheme.onSurface, size: 20)),
-        ],
       );
 
   Widget _buildSongTitle(SongModel song) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(song.title ?? 'Pista desconocida',
-              style: const TextStyle(
-                  color: AppTheme.onSurface,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1,
-                  height: 1.1),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis),
+              style: const TextStyle(color: AppTheme.onSurface, fontSize: 28,
+                  fontWeight: FontWeight.w900, letterSpacing: -1, height: 1.1),
+              maxLines: 2, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 6),
           Text(song.artist ?? 'Artista desconocido',
-              style: const TextStyle(
-                  color: AppTheme.onSurfaceVariant,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500)),
+              style: const TextStyle(color: AppTheme.onSurfaceVariant,
+                  fontSize: 15, fontWeight: FontWeight.w500)),
         ],
       );
 
-  Widget _buildAlbumInfo(SongModel song) =>
-      Text(song.album ?? 'Álbum desconocido',
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-              color: AppTheme.onSurface,
-              fontSize: 13,
-              fontWeight: FontWeight.w600));
+  Widget _buildAlbumInfo(SongModel song) => Text(
+        song.album ?? 'Álbum desconocido',
+        textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: AppTheme.onSurface,
+            fontSize: 13, fontWeight: FontWeight.w600));
 
-  // ✅ Barra de progreso usa ValueListenableBuilder — sin rebuild del árbol Provider
   Widget _buildProgressBar(AudioProvider audio) =>
       ValueListenableBuilder<Duration>(
         valueListenable: audio.positionNotifier,
@@ -309,36 +322,26 @@ class _PlayerContentState extends State<_PlayerContent>
                 : 0.0;
             return Column(
               children: [
-                Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(audio.formatDuration(pos),
-                          style: const TextStyle(
-                              color: AppTheme.onSurfaceVariant,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1)),
-                      Text(audio.formatDuration(dur),
-                          style: const TextStyle(
-                              color: AppTheme.onSurfaceVariant,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1)),
-                    ]),
-                const SizedBox(height: 6),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text(audio.formatDuration(pos),
+                      style: const TextStyle(color: AppTheme.onSurfaceVariant,
+                          fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1)),
+                  Text(audio.formatDuration(dur),
+                      style: const TextStyle(color: AppTheme.onSurfaceVariant,
+                          fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1)),
+                ]),
+                const SizedBox(height: 4),
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 4,
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 7),
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
                     activeTrackColor: AppTheme.tertiary,
                     inactiveTrackColor: AppTheme.surfaceVariant.withAlpha(100),
                     thumbColor: Colors.white,
                     overlayShape: SliderComponentShape.noOverlay,
                   ),
                   child: Slider(
-                      value: progress.toDouble(),
-                      onChanged: (v) => audio.seekTo(v)),
+                      value: progress.toDouble(), onChanged: (v) => audio.seekTo(v)),
                 ),
               ],
             );
@@ -352,20 +355,16 @@ class _PlayerContentState extends State<_PlayerContent>
         builder: (context, state, _) {
           final (isPlaying, shuffleOn, repeatMode) = state;
           final repeatIcon = repeatMode == AppRepeatState.one
-              ? Icons.repeat_one_rounded
-              : Icons.repeat_rounded;
+              ? Icons.repeat_one_rounded : Icons.repeat_rounded;
           final repeatColor = repeatMode == AppRepeatState.off
-              ? AppTheme.onSurfaceVariant
-              : AppTheme.primary;
+              ? AppTheme.onSurfaceVariant : AppTheme.primary;
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
                   onPressed: audio.toggleShuffle,
                   icon: Icon(Icons.shuffle_rounded,
-                      color: shuffleOn
-                          ? AppTheme.primary
-                          : AppTheme.onSurfaceVariant,
+                      color: shuffleOn ? AppTheme.primary : AppTheme.onSurfaceVariant,
                       size: 26)),
               IconButton(
                   onPressed: audio.skipPrevious,
@@ -374,23 +373,15 @@ class _PlayerContentState extends State<_PlayerContent>
               GestureDetector(
                 onTap: audio.togglePlayPause,
                 child: Container(
-                  width: 70,
-                  height: 70,
+                  width: 70, height: 70,
                   decoration: BoxDecoration(
-                      color: AppTheme.tertiary,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                            color: _glowColor.withAlpha(80),
-                            blurRadius: 24,
-                            spreadRadius: 4)
-                      ]),
+                    color: AppTheme.tertiary, shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(
+                        color: _glowColor.withAlpha(80), blurRadius: 24, spreadRadius: 4)],
+                  ),
                   child: Icon(
-                      isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      color: AppTheme.onTertiary,
-                      size: 36),
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: AppTheme.onTertiary, size: 36),
                 ),
               ),
               IconButton(
@@ -405,8 +396,8 @@ class _PlayerContentState extends State<_PlayerContent>
         },
       );
 
-  Widget _buildUtilityRow(BuildContext context, SongModel song, bool isFav,
-          LibraryProvider library) =>
+  Widget _buildUtilityRow(BuildContext context, SongModel song,
+      bool isFav, LibraryProvider library) =>
       Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
@@ -417,25 +408,20 @@ class _PlayerContentState extends State<_PlayerContent>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            // ✅ LIKE funcional
             _UtilBtn(
-              icon: isFav
-                  ? Icons.favorite_rounded
-                  : Icons.favorite_border_rounded,
+              icon: isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
               label: 'LIKE',
               color: isFav ? Colors.pinkAccent : AppTheme.onSurfaceVariant,
               onTap: () => isFav
                   ? library.removeFromFavorites(song)
                   : library.addToFavorites(song),
             ),
-            // ✅ LISTA funcional
             _UtilBtn(
               icon: Icons.playlist_add_rounded,
               label: 'LISTA',
               color: AppTheme.onSurfaceVariant,
               onTap: () => _showAddToPlaylistSheet(context, library, song),
             ),
-            // SHARE (próximamente)
             _UtilBtn(
               icon: Icons.share_rounded,
               label: 'SHARE',
@@ -456,20 +442,15 @@ class _PlayerContentState extends State<_PlayerContent>
       builder: (ctx) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-              width: 36,
-              height: 4,
+          Container(width: 36, height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 4),
               decoration: BoxDecoration(
-                  color: AppTheme.outline,
-                  borderRadius: BorderRadius.circular(2))),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+                  color: AppTheme.outline, borderRadius: BorderRadius.circular(2))),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
             child: Text('Agregar a Lista',
-                style: const TextStyle(
-                    color: AppTheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16)),
+                style: TextStyle(color: AppTheme.onSurface,
+                    fontWeight: FontWeight.bold, fontSize: 16)),
           ),
           const Divider(height: 1, color: AppTheme.surfaceVariant),
           if (library.playlists.isEmpty)
@@ -508,16 +489,53 @@ class _PlayerContentState extends State<_PlayerContent>
   }
 }
 
+// ─── Portada cuadrada para landscape (sin vinilo) ────────────────────────────
+class _LandscapeAlbumArt extends StatelessWidget {
+  final SongModel song;
+  final Color glowColor;
+  const _LandscapeAlbumArt({required this.song, required this.glowColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size.shortestSide * 0.55;
+    return Container(
+      width: size, height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: glowColor.withAlpha(100), blurRadius: 40, spreadRadius: 4),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: RepaintBoundary(
+          child: QueryArtworkWidget(
+            id: song.id,
+            type: ArtworkType.AUDIO,
+            artworkFit: BoxFit.cover,
+            artworkWidth:  size,
+            artworkHeight: size,
+            keepOldArtwork: true,
+            nullArtworkWidget: Container(
+              color: AppTheme.surfaceContainerHigh,
+              child: const Icon(Icons.music_note_rounded,
+                  color: AppTheme.onSurfaceVariant, size: 64),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Botón de utilidad ────────────────────────────────────────────────────────
 class _UtilBtn extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final Color color;
+  final String   label;
+  final Color    color;
   final VoidCallback onTap;
-  const _UtilBtn(
-      {required this.icon,
-      required this.label,
-      required this.color,
-      required this.onTap});
+  const _UtilBtn({required this.icon, required this.label,
+      required this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -525,12 +543,8 @@ class _UtilBtn extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, color: color, size: 22),
           const SizedBox(height: 4),
-          Text(label,
-              style: TextStyle(
-                  color: color,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8)),
+          Text(label, style: TextStyle(color: color, fontSize: 9,
+              fontWeight: FontWeight.w800, letterSpacing: 0.8)),
         ]),
       );
 }
