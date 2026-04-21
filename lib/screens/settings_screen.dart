@@ -1,76 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
+import '../providers/audio_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
-
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _darkMode = true;
-  int _sleepTimerMin = 0; // 0 = off
 
   @override
   Widget build(BuildContext context) {
+    final audio = context.watch<AudioProvider>();
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(child: _buildHeader()),
-            SliverToBoxAdapter(child: _buildProfileCard()),
             SliverToBoxAdapter(child: _buildSection(
-              label: 'Experience',
+              label: 'Experiencia',
               children: [
                 _buildSettingTile(
                   icon: Icons.equalizer_rounded,
-                  title: 'Equalizer',
+                  title: 'Ecualizador',
                   subtitle: null,
                   trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceVariant),
                   onTap: () => _showEqualizer(context),
                 ),
-                _buildSettingTile(
-                  icon: Icons.timer_rounded,
-                  title: 'Sleep Timer',
-                  subtitle: _sleepTimerMin == 0 ? 'Off' : '$_sleepTimerMin min',
-                  trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceVariant),
-                  onTap: () => _showSleepTimer(context),
-                ),
+                _buildSleepTimerTile(context, audio),
                 _buildSettingTile(
                   icon: Icons.dark_mode_rounded,
-                  title: 'Appearance',
-                  subtitle: 'Dark Theme',
+                  title: 'Apariencia',
+                  subtitle: 'Tema oscuro',
                   trailing: Switch(
                     value: _darkMode,
                     onChanged: (v) => setState(() => _darkMode = v),
+                    activeColor: AppTheme.primary,
                   ),
                   onTap: null,
                 ),
               ],
             )),
             SliverToBoxAdapter(child: _buildSection(
-              label: 'Support',
+              label: 'Soporte',
               children: [
                 _buildSettingTile(
                   icon: Icons.info_outline_rounded,
-                  title: 'About',
-                  subtitle: 'Sonic Monolith v1.0.0',
+                  title: 'Acerca de',
+                  subtitle: 'ACARMusic v1.0.0',
                   trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceVariant),
                   onTap: () => _showAbout(context),
                 ),
-                _buildSettingTile(
-                  icon: Icons.storage_rounded,
-                  title: 'Storage',
-                  subtitle: 'Music library cache',
-                  trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceVariant),
-                  onTap: () {},
-                ),
               ],
             )),
-            const SliverToBoxAdapter(child: SizedBox(height: 160)),
+            const SliverToBoxAdapter(child: SizedBox(height: 180)),
           ],
         ),
       ),
@@ -78,218 +67,239 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildHeader() => Container(
-    color: Colors.black,
-    padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-    child: Text(
-      'Settings',
-      style: GoogleFonts.manrope(
-        color: AppTheme.onSurface,
-        fontSize: 24,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.5,
-      ),
-    ),
-  );
+        color: Colors.black,
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Text('Ajustes',
+            style: GoogleFonts.manrope(
+                color: AppTheme.onSurface, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+      );
 
-  Widget _buildProfileCard() => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-    child: Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF6D28D9), Color(0xFFEC4899)],
-              ),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person_rounded, color: Colors.white, size: 36),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  // ── Sleep Timer con countdown ─────────────────────────────────────────────
+  Widget _buildSleepTimerTile(BuildContext context, AudioProvider audio) {
+    return ValueListenableBuilder<Duration>(
+      valueListenable: audio.sleepRemainingNotifier,
+      builder: (_, remaining, __) {
+        final isActive  = remaining > Duration.zero;
+        final subtitle  = isActive
+            ? 'Apaga en ${_fmt(remaining)}'
+            : (audio.sleepTimerMinutes > 0 ? '${audio.sleepTimerMinutes} min' : 'Desactivado');
+
+        return GestureDetector(
+          onTap: () => _showSleepTimerSheet(context, audio),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppTheme.surface, borderRadius: BorderRadius.circular(14)),
+            child: Row(
               children: [
-                Text(
-                  'Local Listener',
-                  style: GoogleFonts.manrope(
-                    color: AppTheme.onSurface,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? AppTheme.primary.withAlpha(40)
+                        : AppTheme.surfaceContainerHigh,
+                    shape: BoxShape.circle,
                   ),
+                  child: Icon(Icons.timer_rounded,
+                      color: isActive ? AppTheme.primary : AppTheme.primary, size: 20),
                 ),
-                Text(
-                  'Playing music from your device',
-                  style: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant, fontSize: 12),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Temporizador de sueño',
+                        style: GoogleFonts.manrope(
+                            color: AppTheme.onSurface, fontSize: 14, fontWeight: FontWeight.w600)),
+                    Text(subtitle.toUpperCase(),
+                        style: GoogleFonts.manrope(
+                            color: isActive ? AppTheme.primary : AppTheme.onSurfaceVariant,
+                            fontSize: 10, letterSpacing: 0.5, fontWeight: FontWeight.w600)),
+                  ]),
                 ),
+                if (isActive)
+                  GestureDetector(
+                    onTap: () => audio.cancelSleepTimer(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withAlpha(30),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text('Cancelar',
+                          style: GoogleFonts.manrope(
+                              color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                  )
+                else
+                  const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceVariant),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryContainer,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Icon(Icons.workspace_premium_rounded, color: AppTheme.onPrimaryContainer, size: 18),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _buildSection({required String label, required List<Widget> children}) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text(
-              label.toUpperCase(),
-              style: GoogleFonts.manrope(
-                color: AppTheme.onSurfaceVariant,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
-          ...children,
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildSettingTile({
-    required IconData icon,
-    required String title,
-    required String? subtitle,
-    required Widget trailing,
-    required VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
+  void _showSleepTimerSheet(BuildContext context, AudioProvider audio) {
+    final presets = [15, 30, 45, 60, 90, 120];
+    final customCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerHigh,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: AppTheme.surfaceContainerHigh,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: AppTheme.primary, size: 20),
+            Container(width: 36, height: 4, margin: const EdgeInsets.only(top: 12, bottom: 4),
+                decoration: BoxDecoration(color: AppTheme.outline, borderRadius: BorderRadius.circular(2))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Text('Temporizador de sueño',
+                  style: GoogleFonts.manrope(
+                      color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800)),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Opción: apagado
+            ListTile(
+              title: Text('Desactivado',
+                  style: GoogleFonts.manrope(color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
+              trailing: audio.sleepTimerMinutes == 0
+                  ? const Icon(Icons.check_rounded, color: AppTheme.primary) : null,
+              onTap: () { audio.cancelSleepTimer(); Navigator.pop(ctx); },
+            ),
+            // Presets
+            ...presets.map((min) => ListTile(
+              title: Text('$min minutos',
+                  style: GoogleFonts.manrope(color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
+              trailing: audio.sleepTimerMinutes == min
+                  ? const Icon(Icons.check_rounded, color: AppTheme.primary) : null,
+              onTap: () { audio.setSleepTimer(min); Navigator.pop(ctx); },
+            )),
+            // Tiempo personalizado
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
                 children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.manrope(
-                      color: AppTheme.onSurface,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle.toUpperCase(),
-                      style: GoogleFonts.manrope(
-                        color: AppTheme.onSurfaceVariant,
-                        fontSize: 10,
-                        letterSpacing: 0.5,
-                        fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: TextField(
+                      controller: customCtrl,
+                      keyboardType: TextInputType.number,
+                      style: GoogleFonts.manrope(color: AppTheme.onSurface),
+                      decoration: InputDecoration(
+                        hintText: 'Minutos personalizados',
+                        hintStyle: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant, fontSize: 13),
+                        enabledBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: AppTheme.outline)),
+                        focusedBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: AppTheme.primary)),
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      final min = int.tryParse(customCtrl.text.trim());
+                      if (min != null && min > 0) {
+                        audio.setSleepTimer(min);
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: AppTheme.onPrimary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('OK', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
+                  ),
                 ],
               ),
             ),
-            trailing,
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
+
+  String _fmt(Duration d) {
+    if (d.inHours >= 1) {
+      return '${d.inHours}h ${(d.inMinutes % 60).toString().padLeft(2, '0')}m';
+    }
+    final m = d.inMinutes;
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '${m}m ${s}s';
+  }
+
+  Widget _buildSection({required String label, required List<Widget> children}) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 12),
+              child: Text(label.toUpperCase(),
+                  style: GoogleFonts.manrope(
+                      color: AppTheme.onSurfaceVariant, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 2)),
+            ),
+            ...children,
+          ],
+        ),
+      );
+
+  Widget _buildSettingTile({
+    required IconData icon, required String title, required String? subtitle,
+    required Widget trailing, required VoidCallback? onTap,
+  }) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(14)),
+          child: Row(
+            children: [
+              Container(
+                width: 40, height: 40,
+                decoration: const BoxDecoration(color: AppTheme.surfaceContainerHigh, shape: BoxShape.circle),
+                child: Icon(icon, color: AppTheme.primary, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(title,
+                      style: GoogleFonts.manrope(
+                          color: AppTheme.onSurface, fontSize: 14, fontWeight: FontWeight.w600)),
+                  if (subtitle != null)
+                    Text(subtitle.toUpperCase(),
+                        style: GoogleFonts.manrope(
+                            color: AppTheme.onSurfaceVariant, fontSize: 10,
+                            letterSpacing: 0.5, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+              trailing,
+            ],
+          ),
+        ),
+      );
 
   void _showEqualizer(BuildContext context) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Equalizer', style: GoogleFonts.manrope(
-              color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800,
-            )),
-            const SizedBox(height: 24),
-            Text(
-              'Equalizer requires system integration.\nUse Samsung Sound settings for advanced EQ.',
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Ecualizador',
+              style: GoogleFonts.manrope(color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 24),
+          Text('El ecualizador requiere integración del sistema.\nUsa los ajustes de sonido de tu dispositivo.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant, fontSize: 13),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSleepTimer(BuildContext context) {
-    final options = [0, 15, 30, 45, 60, 90];
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Text('Sleep Timer', style: GoogleFonts.manrope(
-                color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800,
-              )),
-            ),
-            ...options.map((min) => ListTile(
-              title: Text(min == 0 ? 'Off' : '$min minutes',
-                style: GoogleFonts.manrope(color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
-              trailing: _sleepTimerMin == min
-                  ? const Icon(Icons.check_rounded, color: AppTheme.primary)
-                  : null,
-              onTap: () {
-                setState(() => _sleepTimerMin = min);
-                Navigator.pop(context);
-              },
-            )),
-          ],
-        ),
+              style: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant, fontSize: 13)),
+          const SizedBox(height: 24),
+        ]),
       ),
     );
   }
@@ -297,14 +307,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showAbout(BuildContext context) {
     showAboutDialog(
       context: context,
-      applicationName: 'Sonic Monolith',
+      applicationName: 'ACARMusic',
       applicationVersion: '1.0.0',
       applicationIcon: const Icon(Icons.music_note_rounded, size: 48, color: AppTheme.primary),
       children: [
-        Text(
-          'A premium local music player built with Flutter.\nDesigned for Samsung Android devices.',
-          style: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant),
-        ),
+        Text('Reproductor de música local personal.\nSin internet, sin anuncios.',
+            style: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant)),
       ],
     );
   }

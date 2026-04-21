@@ -9,7 +9,6 @@ import '../widgets/track_tile.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
-
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
 }
@@ -17,6 +16,9 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final ScrollController _tracksScrollCtrl = ScrollController();
+  Map<String, int> _letterIndex = {};
+  static const double _tileHeight = 72.0;
 
   @override
   void initState() {
@@ -28,198 +30,293 @@ class _LibraryScreenState extends State<LibraryScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _tracksScrollCtrl.dispose();
     super.dispose();
+  }
+
+  void _buildLetterIndex(List<SongModel> songs) {
+    _letterIndex = {};
+    for (int i = 0; i < songs.length; i++) {
+      final raw = songs[i].title ?? '';
+      final letter = raw.isEmpty ? '#' : raw[0].toUpperCase();
+      final key = RegExp(r'[A-Z]').hasMatch(letter) ? letter : '#';
+      _letterIndex.putIfAbsent(key, () => i);
+    }
+  }
+
+  void _scrollToLetter(String letter) {
+    final idx = _letterIndex[letter];
+    if (idx == null) return;
+    _tracksScrollCtrl.animateTo(
+      idx * _tileHeight,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final library = context.watch<LibraryProvider>();
-    final audio = context.watch<AudioProvider>();
+    _buildLetterIndex(library.songs);
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildAppBar(library, audio),
-            _buildTabBar(),
-            Expanded(
-              child: library.isLoading
-                  ? _buildLoading()
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildTracksList(library, audio),
-                        _buildAlbumsList(library, audio),
-                        _buildArtistsList(library, audio),
-                        _buildFoldersList(library, audio),
-                      ],
-                    ),
+      // ✅ NestedScrollView: header colapsa al hacer scroll, tabs quedan fijos
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          // ── SliverAppBar (título + botón Mezclar) ──────────────────
+          SliverAppBar(
+            backgroundColor: Colors.black,
+            pinned: true,
+            floating: false,
+            expandedHeight: 70,
+            titleSpacing: 0,
+            automaticallyImplyLeading: false,
+            // Cuando está colapsado solo muestra título pequeño
+            title: AnimatedOpacity(
+              opacity: innerBoxIsScrolled ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 150),
+              child: Text('Biblioteca',
+                  style: GoogleFonts.manrope(
+                      color: AppTheme.onSurface,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800)),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAppBar(LibraryProvider library, AudioProvider audio) {
-    return Container(
-      color: Colors.black,
-      padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
-      child: Row(
-        children: [
-          Text(
-            'Library',
-            style: GoogleFonts.manrope(
-              color: AppTheme.onSurface,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const Spacer(),
-          // Shuffle all button
-          if (library.songs.isNotEmpty)
-            GestureDetector(
-              onTap: () {
-                final songs = library.songs;
-                final rand =
-                    DateTime.now().millisecondsSinceEpoch % songs.length;
-                audio.playSong(songs[rand], songs, rand);
-              },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppTheme.primary,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.shuffle_rounded,
-                        color: AppTheme.onPrimary, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Shuffle',
-                      style: GoogleFonts.manrope(
-                        color: AppTheme.onPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+            // Cuando está expandido muestra el título grande
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: EdgeInsets.zero,
+              background: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text('Biblioteca',
+                          style: GoogleFonts.manrope(
+                              color: AppTheme.onSurface,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5)),
+                      const Spacer(),
+                      if (library.songs.isNotEmpty)
+                        GestureDetector(
+                          onTap: () {
+                            final songs = library.songs;
+                            final rand = DateTime.now().millisecondsSinceEpoch %
+                                songs.length;
+                            context
+                                .read<AudioProvider>()
+                                .playSong(songs[rand], songs, rand);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                                color: AppTheme.primary,
+                                borderRadius: BorderRadius.circular(999)),
+                            child: Row(children: [
+                              const Icon(Icons.shuffle_rounded,
+                                  color: AppTheme.onPrimary, size: 16),
+                              const SizedBox(width: 6),
+                              Text('Mezclar',
+                                  style: GoogleFonts.manrope(
+                                      color: AppTheme.onPrimary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700)),
+                            ]),
+                          ),
+                        ),
+                      IconButton(
+                          onPressed: () {},
+                          icon: const Icon(Icons.more_vert_rounded,
+                              color: AppTheme.onSurfaceVariant)),
+                    ],
+                  ),
                 ),
               ),
             ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.more_vert_rounded,
-                color: AppTheme.onSurfaceVariant),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabBar() {
-    final tabs = ['Tracks', 'Albums', 'Artists', 'Folders'];
-    return Container(
-      color: Colors.black,
-      height: 48,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          children: List.generate(tabs.length, (i) {
-            final active = _tabController.index == i;
-            return GestureDetector(
-              onTap: () => _tabController.animateTo(i),
-              child: Container(
-                margin: const EdgeInsets.only(right: 28),
-                padding: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: active ? AppTheme.onSurface : Colors.transparent,
-                      width: 2,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  tabs[i],
-                  style: GoogleFonts.manrope(
-                    color: active ? AppTheme.onSurface : AppTheme.outline,
+          // ── TabBar fija — siempre visible ──────────────────────────
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _StickyTabBarDelegate(
+              tabBar: TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                indicatorColor: AppTheme.onSurface,
+                indicatorWeight: 2,
+                labelColor: AppTheme.onSurface,
+                unselectedLabelColor: AppTheme.outline,
+                labelStyle: GoogleFonts.manrope(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
-                  ),
-                ),
+                    letterSpacing: -0.3),
+                unselectedLabelStyle: GoogleFonts.manrope(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                tabs: const [
+                  Tab(text: 'Pistas'),
+                  Tab(text: 'Álbumes'),
+                  Tab(text: 'Artistas'),
+                  Tab(text: 'Carpetas'),
+                ],
               ),
+            ),
+          ),
+        ],
+        body: library.isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: AppTheme.primary))
+            : TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildTracksTab(library),
+                  _buildAlbumsTab(library),
+                  _buildArtistsTab(library),
+                  _buildFoldersTab(library),
+                ],
+              ),
+      ),
+    );
+  }
+
+  // ── Tab pistas con sidebar alfabético ─────────────────────────────────────
+  Widget _buildTracksTab(LibraryProvider library) {
+    final songs = library.songs;
+    if (songs.isEmpty)
+      return _buildEmpty(
+          'No se encontraron canciones', Icons.music_off_rounded);
+
+    final letters = [
+      '#',
+      ...List.generate(26, (i) => String.fromCharCode(65 + i))
+    ];
+
+    return Row(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            controller: _tracksScrollCtrl,
+            padding: const EdgeInsets.fromLTRB(16, 8, 0, 180),
+            itemCount: songs.length,
+            itemExtent: _tileHeight,
+            itemBuilder: (context, i) {
+              final song = songs[i];
+              return Selector<AudioProvider, bool>(
+                selector: (_, a) => a.currentSong?.id == song.id,
+                builder: (context, isPlaying, _) => TrackTile(
+                  song: song,
+                  isPlaying: isPlaying,
+                  onTap: () {
+                    library.addToRecentlyPlayed(song);
+                    library.incrementPlayCount(song.id);
+                    context.read<AudioProvider>().playSong(song, songs, i);
+                  },
+                  onMore: () => _showTrackOptions(context, song, library),
+                ),
+              );
+            },
+          ),
+        ),
+        // Sidebar alfabético
+        Container(
+          width: 22,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: LayoutBuilder(builder: (_, c) {
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: letters.map((letter) {
+                final enabled = _letterIndex.containsKey(letter);
+                return GestureDetector(
+                  onTap: enabled ? () => _scrollToLetter(letter) : null,
+                  child: Text(
+                    letter,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: enabled
+                          ? AppTheme.primary
+                          : AppTheme.outline.withAlpha(60),
+                    ),
+                  ),
+                );
+              }).toList(),
             );
           }),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildLoading() => const Center(
-        child: CircularProgressIndicator(color: AppTheme.primary),
-      );
-
-  Widget _buildTracksList(LibraryProvider library, AudioProvider audio) {
-    if (library.songs.isEmpty) {
-      return _buildEmpty('No songs found', Icons.music_off_rounded);
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
-      itemCount: library.songs.length,
+  Widget _buildAlbumsTab(LibraryProvider library) {
+    if (library.albums.isEmpty)
+      return _buildEmpty('No se encontraron álbumes', Icons.album_rounded);
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 180),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.85),
+      itemCount: library.albums.length,
       itemBuilder: (context, i) {
-        final song = library.songs[i];
-        final isPlaying = audio.currentSong?.id == song.id;
-        return TrackTile(
-          song: song,
-          isPlaying: isPlaying,
+        final album = library.albums[i];
+        return GestureDetector(
           onTap: () {
-            context.read<LibraryProvider>().addToRecentlyPlayed(song);
-            audio.playSong(song, library.songs, i);
+            final songs = library.getSongsByAlbum(album.id);
+            if (songs.isNotEmpty)
+              context.read<AudioProvider>().playSong(songs.first, songs, 0);
           },
-          onMore: () => _showTrackOptions(context, song),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: RepaintBoundary(
+                child: QueryArtworkWidget(
+                  id: album.id,
+                  type: ArtworkType.ALBUM,
+                  artworkBorder: BorderRadius.circular(12),
+                  artworkFit: BoxFit.cover,
+                  artworkWidth: 200,
+                  artworkHeight: 200,
+                  keepOldArtwork: true,
+                  nullArtworkWidget: Container(
+                    decoration: BoxDecoration(
+                        color: AppTheme.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.album_rounded,
+                        color: AppTheme.onSurfaceVariant, size: 48),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(album.album ?? 'Álbum desconocido',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.manrope(
+                    color: AppTheme.onSurface,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700)),
+            Text(album.artist ?? 'Artista desconocido',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.manrope(
+                    color: AppTheme.onSurfaceVariant, fontSize: 11)),
+          ]),
         );
       },
     );
   }
 
-  Widget _buildAlbumsList(LibraryProvider library, AudioProvider audio) {
-    if (library.albums.isEmpty) {
-      return _buildEmpty('No albums found', Icons.album_rounded);
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
-      ),
-      itemCount: library.albums.length,
-      itemBuilder: (context, i) {
-        final album = library.albums[i];
-        return _AlbumCard(
-            album: album,
-            onTap: () {
-              final songs = library.getSongsByAlbum(album.id);
-              if (songs.isNotEmpty) audio.playSong(songs.first, songs, 0);
-            });
-      },
-    );
-  }
-
-  Widget _buildArtistsList(LibraryProvider library, AudioProvider audio) {
-    if (library.artists.isEmpty) {
-      return _buildEmpty('No artists found', Icons.person_rounded);
-    }
+  Widget _buildArtistsTab(LibraryProvider library) {
+    if (library.artists.isEmpty)
+      return _buildEmpty('No se encontraron artistas', Icons.person_rounded);
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 180),
       itemCount: library.artists.length,
       itemBuilder: (context, i) {
         final artist = library.artists[i];
@@ -230,55 +327,42 @@ class _LibraryScreenState extends State<LibraryScreen>
             width: 52,
             height: 52,
             decoration: const BoxDecoration(
-              color: AppTheme.surfaceContainerHigh,
-              shape: BoxShape.circle,
-            ),
+                color: AppTheme.surfaceContainerHigh, shape: BoxShape.circle),
             child: const Icon(Icons.person_rounded,
                 color: AppTheme.onSurfaceVariant),
           ),
-          title: Text(
-            artist.artist ?? 'Unknown Artist',
-            style: GoogleFonts.manrope(
-              color: AppTheme.onSurface,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          subtitle: Text(
-            '${artist.numberOfTracks ?? 0} songs',
-            style: GoogleFonts.manrope(
-              color: AppTheme.onSurfaceVariant,
-              fontSize: 12,
-            ),
-          ),
+          title: Text(artist.artist ?? 'Artista desconocido',
+              style: GoogleFonts.manrope(
+                  color: AppTheme.onSurface,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700)),
+          subtitle: Text('${artist.numberOfTracks ?? 0} canciones',
+              style: GoogleFonts.manrope(
+                  color: AppTheme.onSurfaceVariant, fontSize: 12)),
           onTap: () {
-            if (artist.id == null) return;
-            final songs = library.getSongsByArtist(artist.id!);
-            if (songs.isNotEmpty) audio.playSong(songs.first, songs, 0);
+            final songs = library.getSongsByArtist(artist.id);
+            if (songs.isNotEmpty)
+              context.read<AudioProvider>().playSong(songs.first, songs, 0);
           },
         );
       },
     );
   }
 
-  Widget _buildFoldersList(LibraryProvider library, AudioProvider audio) {
-    // Group songs by folder
+  Widget _buildFoldersTab(LibraryProvider library) {
     final Map<String, List<SongModel>> folders = {};
     for (final song in library.songs) {
       final path = song.data ?? '';
       final folder = path.contains('/')
           ? path.substring(0, path.lastIndexOf('/'))
           : 'Unknown';
-      final name = folder.split('/').last;
-      folders.putIfAbsent(name, () => []).add(song);
+      folders.putIfAbsent(folder.split('/').last, () => []).add(song);
     }
-
     if (folders.isEmpty)
-      return _buildEmpty('No folders found', Icons.folder_rounded);
-
+      return _buildEmpty('No se encontraron carpetas', Icons.folder_rounded);
     final keys = folders.keys.toList()..sort();
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 180),
       itemCount: keys.length,
       itemBuilder: (context, i) {
         final key = keys[i];
@@ -290,105 +374,84 @@ class _LibraryScreenState extends State<LibraryScreen>
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: AppTheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(10),
-            ),
+                color: AppTheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(10)),
             child: const Icon(Icons.folder_rounded, color: AppTheme.primary),
           ),
-          title: Text(
-            key,
-            style: GoogleFonts.manrope(
-              color: AppTheme.onSurface,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          subtitle: Text(
-            '${songs.length} songs',
-            style: GoogleFonts.manrope(
-                color: AppTheme.onSurfaceVariant, fontSize: 12),
-          ),
-          onTap: () => audio.playSong(songs.first, songs, 0),
+          title: Text(key,
+              style: GoogleFonts.manrope(
+                  color: AppTheme.onSurface,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700)),
+          subtitle: Text('${songs.length} canciones',
+              style: GoogleFonts.manrope(
+                  color: AppTheme.onSurfaceVariant, fontSize: 12)),
+          onTap: () =>
+              context.read<AudioProvider>().playSong(songs.first, songs, 0),
         );
       },
     );
   }
 
   Widget _buildEmpty(String msg, IconData icon) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: AppTheme.outline, size: 64),
-            const SizedBox(height: 16),
-            Text(msg,
-                style: GoogleFonts.manrope(
-                    color: AppTheme.onSurfaceVariant, fontSize: 16)),
-          ],
-        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: AppTheme.outline, size: 64),
+          const SizedBox(height: 16),
+          Text(msg,
+              style: GoogleFonts.manrope(
+                  color: AppTheme.onSurfaceVariant, fontSize: 16)),
+        ]),
       );
 
-  void _showTrackOptions(BuildContext context, SongModel song) {
-    final library = context.read<LibraryProvider>();
+  void _showTrackOptions(
+      BuildContext context, SongModel song, LibraryProvider library) {
     final isFav = library.isFavorite(song);
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
               width: 36,
               height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: AppTheme.outline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            ListTile(
-              leading: Icon(
+                  color: AppTheme.outline,
+                  borderRadius: BorderRadius.circular(2))),
+          ListTile(
+            leading: Icon(
                 isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                color: isFav ? Colors.redAccent : AppTheme.onSurface,
-              ),
-              title: Text(
-                isFav ? 'Remove from Favorites' : 'Add to Favorites',
+                color: isFav ? Colors.redAccent : AppTheme.onSurface),
+            title: Text(isFav ? 'Quitar de Favoritos' : 'Agregar a Favoritos',
                 style: GoogleFonts.manrope(
-                    color: AppTheme.onSurface, fontWeight: FontWeight.w600),
-              ),
-              onTap: () {
-                if (isFav) {
-                  library.removeFromFavorites(song);
-                } else {
-                  library.addToFavorites(song);
-                }
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.playlist_add_rounded,
-                  color: AppTheme.onSurface),
-              title: Text(
-                'Add to Playlist',
+                    color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
+            onTap: () {
+              isFav
+                  ? library.removeFromFavorites(song)
+                  : library.addToFavorites(song);
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.playlist_add_rounded,
+                color: AppTheme.onSurface),
+            title: Text('Agregar a Lista',
                 style: GoogleFonts.manrope(
-                    color: AppTheme.onSurface, fontWeight: FontWeight.w600),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                _showAddToPlaylistDialog(context, library, song);
-              },
-            ),
-          ],
-        ),
+                    color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
+            onTap: () {
+              Navigator.pop(context);
+              _showAddToPlaylistSheet(context, library, song);
+            },
+          ),
+        ]),
       ),
     );
   }
 
-  void _showAddToPlaylistDialog(
+  void _showAddToPlaylistSheet(
       BuildContext context, LibraryProvider library, SongModel song) {
     showModalBottomSheet(
       context: context,
@@ -399,7 +462,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 16),
-          Text('Add to Playlist',
+          Text('Agregar a Lista',
               style: GoogleFonts.manrope(
                   color: AppTheme.onSurface,
                   fontWeight: FontWeight.bold,
@@ -408,7 +471,8 @@ class _LibraryScreenState extends State<LibraryScreen>
           if (library.playlists.isEmpty)
             Padding(
               padding: const EdgeInsets.all(32),
-              child: Text('No playlists found',
+              child: Text('Crea primero una lista en la pestaña Listas',
+                  textAlign: TextAlign.center,
                   style: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant)),
             )
           else
@@ -421,14 +485,13 @@ class _LibraryScreenState extends State<LibraryScreen>
                   return ListTile(
                     leading: const Icon(Icons.playlist_add_rounded,
                         color: AppTheme.primary),
-                    title: Text(p.playlist,
+                    title: Text(p.name,
                         style: GoogleFonts.manrope(color: AppTheme.onSurface)),
                     onTap: () {
-                      library.addToPlaylist(p.id, song.id);
+                      library.addSongToPlaylist(p.id, song.id);
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Added to ${p.playlist}')),
-                      );
+                          SnackBar(content: Text('Agregado a ${p.name}')));
                     },
                   );
                 },
@@ -441,60 +504,23 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 }
 
-class _AlbumCard extends StatelessWidget {
-  final AlbumModel album;
-  final VoidCallback onTap;
-  const _AlbumCard({required this.album, required this.onTap});
+// ─── Delegate para mantener el TabBar pegado debajo del SliverAppBar ──────────
+class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+  const _StickyTabBarDelegate({required this.tabBar});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: RepaintBoundary(
-              child: QueryArtworkWidget(
-                id: album.id,
-                type: ArtworkType.ALBUM,
-                artworkBorder: BorderRadius.circular(12),
-                artworkFit: BoxFit.cover,
-                artworkWidth: 200,
-                artworkHeight: 200,
-                nullArtworkWidget: Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.album_rounded,
-                      color: AppTheme.onSurfaceVariant, size: 48),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            album.album ?? 'Unknown Album',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.manrope(
-              color: AppTheme.onSurface,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          Text(
-            album.artist ?? 'Unknown Artist',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.manrope(
-              color: AppTheme.onSurfaceVariant,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
+  double get minExtent => tabBar.preferredSize.height;
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(color: Colors.black, child: tabBar);
   }
+
+  @override
+  bool shouldRebuild(covariant _StickyTabBarDelegate old) =>
+      old.tabBar != tabBar;
 }
