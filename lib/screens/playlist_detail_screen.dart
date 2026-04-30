@@ -98,7 +98,7 @@ class PlaylistDetailScreen extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.music_off_rounded,
+                        const Icon(Icons.music_off_rounded,
                             color: AppTheme.outline, size: 64),
                         const SizedBox(height: 16),
                         Text(

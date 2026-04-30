@@ -159,7 +159,7 @@ class LibraryProvider extends ChangeNotifier {
         ? []
         : _songs
             .where((s) =>
-                (s.title?.toLowerCase().contains(_searchQuery) ?? false) ||
+                (s.title.toLowerCase().contains(_searchQuery) ?? false) ||
                 (s.artist?.toLowerCase().contains(_searchQuery) ?? false) ||
                 (s.album?.toLowerCase().contains(_searchQuery) ?? false))
             .toList();
