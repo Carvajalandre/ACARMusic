@@ -31,7 +31,7 @@ class MiniPlayer extends StatelessWidget {
         ),
       ),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
         decoration: BoxDecoration(
           color: AppTheme.surfaceContainerHigh.withAlpha(230),
           borderRadius: BorderRadius.circular(16),
@@ -96,33 +96,39 @@ class MiniPlayer extends StatelessWidget {
                     ),
                   ),
                   // Controles — solo escuchan isPlaying
-                  IconButton(
+                  _PressableIconButton(
                     onPressed: audio.skipPrevious,
                     icon: const Icon(Icons.skip_previous_rounded,
                         color: AppTheme.onSurface),
-                    padding: EdgeInsets.zero,
                   ),
                   Selector<AudioProvider, bool>(
                     selector: (_, a) => a.isPlaying,
-                    builder: (_, isPlaying, __) => GestureDetector(
+                    builder: (_, isPlaying, __) => _PressableScale(
                       onTap: audio.togglePlayPause,
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: const BoxDecoration(
                             color: AppTheme.tertiary, shape: BoxShape.circle),
-                        child: Icon(
-                            isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                            color: AppTheme.onTertiary),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          switchInCurve: Curves.easeOut,
+                          switchOutCurve: Curves.easeIn,
+                          transitionBuilder: (child, animation) =>
+                              ScaleTransition(scale: animation, child: child),
+                          child: Icon(
+                              isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              key: ValueKey(isPlaying),
+                              color: AppTheme.onTertiary),
+                        ),
                       ),
                     ),
                   ),
-                  IconButton(
+                  _PressableIconButton(
                     onPressed: audio.skipNext,
                     icon: const Icon(Icons.skip_next_rounded,
                         color: AppTheme.onSurface),
-                    padding: EdgeInsets.zero,
                   ),
                 ],
               ),
@@ -171,6 +177,66 @@ class _ProgressBar extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _PressableIconButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final Widget icon;
+
+  const _PressableIconButton({
+    required this.onPressed,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _PressableScale(
+      onTap: onPressed,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: icon,
+      ),
+    );
+  }
+}
+
+class _PressableScale extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const _PressableScale({
+    required this.child,
+    this.onTap,
+  });
+
+  @override
+  State<_PressableScale> createState() => _PressableScaleState();
+}
+
+class _PressableScaleState extends State<_PressableScale> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.9 : 1,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
     );
   }
 }

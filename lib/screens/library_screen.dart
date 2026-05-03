@@ -186,9 +186,10 @@ class _LibraryScreenState extends State<LibraryScreen>
   // ── Tab pistas con sidebar alfabético ─────────────────────────────────────
   Widget _buildTracksTab(LibraryProvider library) {
     final songs = library.songs;
-    if (songs.isEmpty)
+    if (songs.isEmpty) {
       return _buildEmpty(
           'No se encontraron canciones', Icons.music_off_rounded);
+    }
 
     final letters = [
       '#',
@@ -253,8 +254,9 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildAlbumsTab(LibraryProvider library) {
-    if (library.albums.isEmpty)
+    if (library.albums.isEmpty) {
       return _buildEmpty('No se encontraron álbumes', Icons.album_rounded);
+    }
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 180),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -268,8 +270,9 @@ class _LibraryScreenState extends State<LibraryScreen>
         return GestureDetector(
           onTap: () {
             final songs = library.getSongsByAlbum(album.id);
-            if (songs.isNotEmpty)
+            if (songs.isNotEmpty) {
               context.read<AudioProvider>().playSong(songs.first, songs, 0);
+            }
           },
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -313,8 +316,9 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildArtistsTab(LibraryProvider library) {
-    if (library.artists.isEmpty)
+    if (library.artists.isEmpty) {
       return _buildEmpty('No se encontraron artistas', Icons.person_rounded);
+    }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 180),
       itemCount: library.artists.length,
@@ -341,8 +345,9 @@ class _LibraryScreenState extends State<LibraryScreen>
                   color: AppTheme.onSurfaceVariant, fontSize: 12)),
           onTap: () {
             final songs = library.getSongsByArtist(artist.id);
-            if (songs.isNotEmpty)
+            if (songs.isNotEmpty) {
               context.read<AudioProvider>().playSong(songs.first, songs, 0);
+            }
           },
         );
       },
@@ -358,8 +363,9 @@ class _LibraryScreenState extends State<LibraryScreen>
           : 'Unknown';
       folders.putIfAbsent(folder.split('/').last, () => []).add(song);
     }
-    if (folders.isEmpty)
+    if (folders.isEmpty) {
       return _buildEmpty('No se encontraron carpetas', Icons.folder_rounded);
+    }
     final keys = folders.keys.toList()..sort();
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 180),

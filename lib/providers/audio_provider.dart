@@ -77,7 +77,7 @@ class AudioProvider extends ChangeNotifier {
 
     try {
       final path = song.data;
-      if (path == null || path.isEmpty) return;
+      if (path.isEmpty) return;
 
       // Actualiza la notificación del sistema con la nueva canción
       _handler.setCurrentSong(song);

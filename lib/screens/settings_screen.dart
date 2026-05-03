@@ -41,7 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   trailing: Switch(
                     value: _darkMode,
                     onChanged: (v) => setState(() => _darkMode = v),
-                    activeColor: AppTheme.primary,
+                    activeThumbColor: AppTheme.primary,
                   ),
                   onTap: null,
                 ),

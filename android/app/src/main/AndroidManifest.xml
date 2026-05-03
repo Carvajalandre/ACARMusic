@@ -12,6 +12,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Notificaciones (Android 13+ / API 33+) -->
+    <!-- Sin esto el controlador de medios NO aparece en el panel -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Permite que la app ignore la optimización de batería -->
+    <!-- Sin esto Samsung puede matar el servicio de audio en segundo plano -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <application
         android:label="ACARMusic"
         android:name="${applicationName}"
@@ -39,22 +47,24 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- Servicio de audio en segundo plano (audio_service) -->
         <service
-    android:name="com.ryanheise.audioservice.AudioServiceBackground"
-    android:exported="false"
-    android:foregroundServiceType="mediaPlayback">
-    <intent-filter>
-        <action android:name="android.media.browse.MediaBrowserService" />
-    </intent-filter>
-</service>
+            android:name="com.ryanheise.audioservice.AudioServiceBackground"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
 
-<receiver
-    android:name="com.ryanheise.audioservice.MediaButtonReceiver"
-    android:exported="true">
-    <intent-filter>
-        <action android:name="android.intent.action.MEDIA_BUTTON" />
-    </intent-filter>
-</receiver>
+        <!-- Receptor de botones de medios (auriculares, Bluetooth) -->
+        <receiver
+            android:name="com.ryanheise.audioservice.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
 
     </application>
 
