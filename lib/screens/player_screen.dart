@@ -534,7 +534,7 @@ class _PlayerContentState extends State<_PlayerContent>
                         color: AppTheme.onSurface, size: 36))),
               Tooltip(
                 message: isPlaying ? 'Pausar' : 'Reproducir',
-                child: GestureDetector(
+                child: _PressableScale(
                   onTap: audio.togglePlayPause,
                   child: Container(
                     width: 68, height: 68,
@@ -544,9 +544,17 @@ class _PlayerContentState extends State<_PlayerContent>
                           color: _glowColor.withAlpha(80),
                           blurRadius: 24, spreadRadius: 4)],
                     ),
-                    child: Icon(
-                      isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      color: AppTheme.onTertiary, size: 34),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      transitionBuilder: (child, animation) =>
+                          ScaleTransition(scale: animation, child: child),
+                      child: Icon(
+                        isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        key: ValueKey(isPlaying),
+                        color: AppTheme.onTertiary, size: 34),
+                    ),
                   ),
                 ),
               ),
@@ -705,7 +713,46 @@ class _ActionBtn extends StatelessWidget {
           const SizedBox(height: 5),
           Text(label, style: TextStyle(
               color: color, fontSize: 9,
-              fontWeight: FontWeight.w800, letterSpacing: 0.8)),
+            fontWeight: FontWeight.w800, letterSpacing: 0.8)),
         ]),
       );
+}
+
+class _PressableScale extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const _PressableScale({
+    required this.child,
+    this.onTap,
+  });
+
+  @override
+  State<_PressableScale> createState() => _PressableScaleState();
+}
+
+class _PressableScaleState extends State<_PressableScale> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.92 : 1,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
+    );
+  }
 }

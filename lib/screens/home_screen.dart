@@ -49,24 +49,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildPortrait() {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: Stack(
+      body: IndexedStack(index: _currentIndex, children: _screens),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IndexedStack(index: _currentIndex, children: _screens),
-          Selector<AudioProvider, int?>(
-            selector: (_, a) => a.currentSong?.id,
-            builder: (context, songId, _) {
-              if (songId == null) return const SizedBox.shrink();
-              return const Positioned(
-                left: 0,
-                right: 0,
-                bottom: 80,
-                child: MiniPlayer(),
-              );
-            },
-          ),
+          const MiniPlayer(),
+          _buildBottomNav(),
         ],
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 

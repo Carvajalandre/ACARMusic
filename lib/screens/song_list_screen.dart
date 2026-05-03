@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/track_tile.dart';
 
 // ─── Modos de ordenación ──────────────────────────────────────────────────────
@@ -88,6 +89,7 @@ class _SongListScreenState extends State<SongListScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
+      bottomNavigationBar: const MiniPlayer(),
       body: CustomScrollView(
         slivers: [
           // ── AppBar con portadas ──────────────────────────────────────
