@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/audio_provider.dart';
@@ -47,15 +48,33 @@ class _HomeScreenState extends State<HomeScreen> {
   // VERTICAL
   // ═══════════════════════════════════════════════════════════════════════════
   Widget _buildPortrait() {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const MiniPlayer(),
-          _buildBottomNav(),
-        ],
+    return PopScope(
+      // false → interceptamos back para mover al background, no finalizar Activity
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (!didPop) await SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.background,
+        body: Stack(
+          children: [
+            IndexedStack(index: _currentIndex, children: _screens),
+            Selector<AudioProvider, int?>(
+              selector: (_, a) => a.currentSong?.id,
+              builder: (context, songId, _) {
+                if (songId == null) return const SizedBox.shrink();
+                // bottom: 0 → MiniPlayer se ancla justo encima del nav bar
+                return const Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: MiniPlayer(),
+                );
+              },
+            ),
+          ],
+        ),
+        bottomNavigationBar: _buildBottomNav(),
       ),
     );
   }
