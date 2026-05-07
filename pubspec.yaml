@@ -32,8 +32,11 @@ dependencies:
   # UI
   google_fonts: ^6.2.1
  
-  # Extracción de colores de portadas ← NUEVO
+  # Extracción de colores de portadas
   palette_generator: ^0.3.3+3
+ 
+  # Notificaciones locales (opcional como respaldo)
+  #flutter_local_notifications: ^17.0.0
  
 dev_dependencies:
   flutter_test:

@@ -5,8 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
-import '../widgets/mini_player.dart';
 import '../widgets/track_tile.dart';
+import '../widgets/mini_player.dart';
 
 // ─── Modos de ordenación ──────────────────────────────────────────────────────
 enum _SortMode { custom, az, recentlyAdded }
@@ -89,7 +89,14 @@ class _SongListScreenState extends State<SongListScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      bottomNavigationBar: const MiniPlayer(),
+      // ── MiniPlayer anclado en el fondo de esta pantalla ────────────────
+      bottomNavigationBar: Selector<AudioProvider, int?>(
+        selector: (_, a) => a.currentSong?.id,
+        builder: (_, songId, __) {
+          if (songId == null) return const SizedBox.shrink();
+          return const MiniPlayer();
+        },
+      ),
       body: CustomScrollView(
         slivers: [
           // ── AppBar con portadas ──────────────────────────────────────
@@ -184,40 +191,45 @@ class _SongListScreenState extends State<SongListScreen> {
           // Modo arrastrar (solo en playlists, solo en orden propio)
           else if (isPlaylist && _sortMode == _SortMode.custom)
             SliverPadding(
-              padding: const EdgeInsets.only(bottom: 180),
+              padding: const EdgeInsets.only(bottom: 8),
               sliver: SliverReorderableList(
                 itemCount: _sorted.length,
                 onReorder: (o, n) => _onReorder(o, n, library),
                 itemBuilder: (context, i) {
                   final song = _sorted[i];
-                  return ReorderableDragStartListener(
+                  // key en Material (no en el listener) para que el scroll funcione
+                  // ReorderableDragStartListener SOLO en el ícono de handle
+                  return Material(
                     key: ValueKey(song.id),
-                    index: i,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Selector<AudioProvider, bool>(
-                        selector: (_, a) => a.currentSong?.id == song.id,
-                        builder: (context, isPlaying, _) => TrackTile(
-                          song: song,
-                          isPlaying: isPlaying,
-                          onTap: () {
-                            library.addToRecentlyPlayed(song);
-                            library.incrementPlayCount(song.id);
-                            audio.playSong(song, _sorted, i);
-                          },
-                          onMore: () => _showOptions(context, song, library),
-                          // Ícono de drag handle al final
-                          trailingOverride:
-                              Row(mainAxisSize: MainAxisSize.min, children: [
-                            IconButton(
-                                onPressed: () =>
-                                    _showOptions(context, song, library),
-                                icon: const Icon(Icons.more_horiz_rounded,
-                                    color: AppTheme.onSurfaceVariant)),
-                            const Icon(Icons.drag_handle_rounded,
-                                color: AppTheme.outline, size: 22),
-                          ]),
-                        ),
+                    color: Colors.transparent,
+                    child: Selector<AudioProvider, bool>(
+                      selector: (_, a) => a.currentSong?.id == song.id,
+                      builder: (context, isPlaying, _) => TrackTile(
+                        song: song,
+                        isPlaying: isPlaying,
+                        onTap: () {
+                          library.addToRecentlyPlayed(song);
+                          library.incrementPlayCount(song.id);
+                          audio.playSong(song, _sorted, i);
+                        },
+                        onMore: () => _showOptions(context, song, library),
+                        trailingOverride:
+                            Row(mainAxisSize: MainAxisSize.min, children: [
+                          IconButton(
+                              onPressed: () =>
+                                  _showOptions(context, song, library),
+                              icon: const Icon(Icons.more_horiz_rounded,
+                                  color: AppTheme.onSurfaceVariant)),
+                          // Solo el handle inicia el drag — el resto del tile scrollea normalmente
+                          ReorderableDragStartListener(
+                            index: i,
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4),
+                              child: Icon(Icons.drag_handle_rounded,
+                                  color: AppTheme.outline, size: 22),
+                            ),
+                          ),
+                        ]),
                       ),
                     ),
                   );
@@ -248,7 +260,8 @@ class _SongListScreenState extends State<SongListScreen> {
               ),
             ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 180)),
+          // Espacio final (MiniPlayer ya está en bottomNavigationBar)
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
         ],
       ),
     );

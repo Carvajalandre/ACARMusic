@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
 import '../widgets/vinyl_record.dart';
+import '../widgets/tap_scale.dart';
 
 class PlayerScreen extends StatelessWidget {
   const PlayerScreen({super.key});
@@ -321,7 +322,7 @@ class _PlayerContentState extends State<_PlayerContent>
                   Tooltip(
                     message: 'Más opciones',
                     child: IconButton(
-                      onPressed: () {},
+                      onPressed: () => _showPlayerOptions(context),
                       icon: const Icon(Icons.more_vert_rounded,
                           color: AppTheme.onSurface, size: 22)),
                   ),
@@ -456,7 +457,7 @@ class _PlayerContentState extends State<_PlayerContent>
           Tooltip(
             message: 'Más opciones',
             child: IconButton(
-              onPressed: () {},
+              onPressed: () => _showPlayerOptions(context),
               icon: const Icon(Icons.more_vert_rounded,
                   color: AppTheme.onSurface)),
           ),
@@ -514,63 +515,122 @@ class _PlayerContentState extends State<_PlayerContent>
         builder: (context, state, _) {
           final (isPlaying, shuffleOn, repeatMode) = state;
           final repeatIcon = repeatMode == AppRepeatState.one
-              ? Icons.repeat_one_rounded : Icons.repeat_rounded;
-          final repeatColor = repeatMode == AppRepeatState.off
-              ? AppTheme.onSurfaceVariant : AppTheme.primary;
+              ? Icons.repeat_one_rounded
+              : Icons.repeat_rounded;
+          final repeatActive = repeatMode != AppRepeatState.off;
 
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Tooltip(message: 'Mezclar',
-                child: IconButton(
-                    onPressed: audio.toggleShuffle,
-                    icon: Icon(Icons.shuffle_rounded,
-                        color: shuffleOn ? AppTheme.primary : AppTheme.onSurfaceVariant,
-                        size: 26))),
-              Tooltip(message: 'Anterior',
-                child: IconButton(
-                    onPressed: audio.skipPrevious,
-                    icon: const Icon(Icons.skip_previous_rounded,
-                        color: AppTheme.onSurface, size: 36))),
+              // ── Shuffle con glow ──────────────────────────────────────
+              Tooltip(
+                message: 'Mezclar',
+                child: TapScale(
+                  onTap: audio.toggleShuffle,
+                  child: _GlowButton(
+                    active: shuffleOn,
+                    activeColor: AppTheme.primary,
+                    glowColor: AppTheme.primary,
+                    child: Icon(Icons.shuffle_rounded,
+                        color: shuffleOn
+                            ? AppTheme.primary
+                            : AppTheme.onSurfaceVariant,
+                        size: 26),
+                  ),
+                ),
+              ),
+              // ── Anterior ──────────────────────────────────────────────
+              Tooltip(
+                message: 'Anterior',
+                child: TapScale(
+                  onTap: audio.skipPrevious,
+                  scale: 0.82,
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.skip_previous_rounded,
+                        color: AppTheme.onSurface, size: 36),
+                  ),
+                ),
+              ),
+              // ── Play / Pause con AnimatedSwitcher ─────────────────────
               Tooltip(
                 message: isPlaying ? 'Pausar' : 'Reproducir',
-                child: _PressableScale(
+                child: TapScale(
                   onTap: audio.togglePlayPause,
+                  scale: 0.90,
                   child: Container(
                     width: 68, height: 68,
                     decoration: BoxDecoration(
-                      color: AppTheme.tertiary, shape: BoxShape.circle,
+                      color: AppTheme.tertiary,
+                      shape: BoxShape.circle,
                       boxShadow: [BoxShadow(
                           color: _glowColor.withAlpha(80),
                           blurRadius: 24, spreadRadius: 4)],
                     ),
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
-                      transitionBuilder: (child, animation) =>
-                          ScaleTransition(scale: animation, child: child),
+                      duration: const Duration(milliseconds: 220),
+                      transitionBuilder: (child, anim) =>
+                          ScaleTransition(scale: anim, child: child),
                       child: Icon(
-                        isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
                         key: ValueKey(isPlaying),
-                        color: AppTheme.onTertiary, size: 34),
+                        color: AppTheme.onTertiary,
+                        size: 34,
+                      ),
                     ),
                   ),
                 ),
               ),
-              Tooltip(message: 'Siguiente',
-                child: IconButton(
-                    onPressed: audio.skipNext,
-                    icon: const Icon(Icons.skip_next_rounded,
-                        color: AppTheme.onSurface, size: 36))),
+              // ── Siguiente ─────────────────────────────────────────────
+              Tooltip(
+                message: 'Siguiente',
+                child: TapScale(
+                  onTap: audio.skipNext,
+                  scale: 0.82,
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.skip_next_rounded,
+                        color: AppTheme.onSurface, size: 36),
+                  ),
+                ),
+              ),
+              // ── Repeat con glow ───────────────────────────────────────
               Tooltip(
                 message: repeatMode == AppRepeatState.one
                     ? 'Repetir esta pista'
                     : repeatMode == AppRepeatState.all
-                        ? 'Repetir todo' : 'Sin repetición',
-                child: IconButton(
-                    onPressed: audio.toggleRepeat,
-                    icon: Icon(repeatIcon, color: repeatColor, size: 26))),
+                        ? 'Repetir todo'
+                        : 'Sin repetición',
+                child: TapScale(
+                  onTap: audio.toggleRepeat,
+                  child: _GlowButton(
+                    active: repeatActive,
+                    activeColor: repeatMode == AppRepeatState.one
+                        ? Colors.amberAccent
+                        : AppTheme.primary,
+                    glowColor: repeatMode == AppRepeatState.one
+                        ? Colors.amberAccent
+                        : AppTheme.primary,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (child, anim) =>
+                          ScaleTransition(scale: anim, child: child),
+                      child: Icon(
+                        repeatIcon,
+                        key: ValueKey(repeatMode),
+                        color: repeatActive
+                            ? (repeatMode == AppRepeatState.one
+                                ? Colors.amberAccent
+                                : AppTheme.primary)
+                            : AppTheme.onSurfaceVariant,
+                        size: 26,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           );
         },
@@ -628,6 +688,124 @@ class _PlayerContentState extends State<_PlayerContent>
           ),
         ),
       ],
+    );
+  }
+
+  // ── Menú Más opciones ────────────────────────────────────────────────────
+  void _showPlayerOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 36, height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              decoration: BoxDecoration(
+                  color: AppTheme.outline,
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('Más opciones',
+                  style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
+            ),
+            const Divider(height: 1, color: AppTheme.surfaceVariant),
+            // Animaciones
+            ListTile(
+              leading: const Icon(Icons.animation_rounded,
+                  color: AppTheme.primary),
+              title: const Text('Animaciones',
+                  style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showComingSoon(context, 'Animaciones');
+              },
+            ),
+            // Ecualizador
+            ListTile(
+              leading: const Icon(Icons.equalizer_rounded,
+                  color: AppTheme.primary),
+              title: const Text('Ecualizador',
+                  style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showComingSoon(context, 'Ecualizador');
+              },
+            ),
+            // Temporizador de sueño — navega a Ajustes (ya implementado)
+            ListTile(
+              leading: const Icon(Icons.bedtime_rounded,
+                  color: AppTheme.primary),
+              title: const Text('Temporizador de sueño',
+                  style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.w600)),
+              subtitle: const Text('Ya disponible en Ajustes',
+                  style: TextStyle(
+                      color: AppTheme.onSurfaceVariant, fontSize: 11)),
+              onTap: () => Navigator.pop(ctx),
+            ),
+            // Ajustes
+            ListTile(
+              leading: const Icon(Icons.settings_rounded,
+                  color: AppTheme.primary),
+              title: const Text('Ajustes',
+                  style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showComingSoon(context, 'Ajustes desde el reproductor');
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showComingSoon(BuildContext context, String feature) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceContainerHigh,
+        title: Row(children: [
+          const Icon(Icons.build_circle_rounded,
+              color: AppTheme.primary, size: 22),
+          const SizedBox(width: 8),
+          Text(feature,
+              style: const TextStyle(
+                  color: AppTheme.onSurface,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16)),
+        ]),
+        content: const Text(
+          'Estamos desarrollando esta función.\n¡Pronto estará disponible!',
+          style: TextStyle(color: AppTheme.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Entendido',
+                style: TextStyle(
+                    color: AppTheme.primary, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -713,46 +891,47 @@ class _ActionBtn extends StatelessWidget {
           const SizedBox(height: 5),
           Text(label, style: TextStyle(
               color: color, fontSize: 9,
-            fontWeight: FontWeight.w800, letterSpacing: 0.8)),
+              fontWeight: FontWeight.w800, letterSpacing: 0.8)),
         ]),
       );
 }
 
-class _PressableScale extends StatefulWidget {
+// ─── Botón con glow animado cuando está activo ────────────────────────────────
+/// Muestra un halo de luz debajo del ícono cuando [active] es true.
+/// Usa AnimatedContainer para transición suave encendido/apagado.
+class _GlowButton extends StatelessWidget {
+  final bool active;
+  final Color activeColor;
+  final Color glowColor;
   final Widget child;
-  final VoidCallback? onTap;
 
-  const _PressableScale({
+  const _GlowButton({
+    required this.active,
+    required this.activeColor,
+    required this.glowColor,
     required this.child,
-    this.onTap,
   });
 
   @override
-  State<_PressableScale> createState() => _PressableScaleState();
-}
-
-class _PressableScaleState extends State<_PressableScale> {
-  bool _pressed = false;
-
-  void _setPressed(bool value) {
-    if (_pressed == value) return;
-    setState(() => _pressed = value);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _setPressed(true),
-      onTapUp: (_) => _setPressed(false),
-      onTapCancel: () => _setPressed(false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.92 : 1,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: widget.child,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: active ? activeColor.withAlpha(28) : Colors.transparent,
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: glowColor.withAlpha(90),
+                  blurRadius: 14,
+                  spreadRadius: 1,
+                )
+              ]
+            : [],
       ),
+      child: child,
     );
   }
 }

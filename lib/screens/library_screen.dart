@@ -20,6 +20,11 @@ class _LibraryScreenState extends State<LibraryScreen>
   Map<String, int> _letterIndex = {};
   static const double _tileHeight = 72.0;
 
+  // ── Sidebar alfabético: overlay de letra grande ───────────────────────────
+  String? _activeLetter;
+  bool    _showLetterOverlay = false;
+  final GlobalKey _sidebarKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -183,7 +188,26 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  // ── Tab pistas con sidebar alfabético ─────────────────────────────────────
+  // ── Determina la letra bajo el dedo usando posición global ───────────────
+  void _updateLetterFromGlobal(Offset globalPos) {
+    final box =
+        _sidebarKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final localY = box.globalToLocal(globalPos).dy.clamp(0.0, box.size.height);
+    final letters = [
+      '#',
+      ...List.generate(26, (i) => String.fromCharCode(65 + i))
+    ];
+    final idx =
+        (localY / box.size.height * letters.length).clamp(0, letters.length - 1).toInt();
+    final letter = letters[idx];
+    if (_activeLetter != letter) {
+      setState(() => _activeLetter = letter);
+      if (_letterIndex.containsKey(letter)) _scrollToLetter(letter);
+    }
+  }
+
+  // ── Tab pistas con sidebar alfabético y overlay de letra grande ───────────
   Widget _buildTracksTab(LibraryProvider library) {
     final songs = library.songs;
     if (songs.isEmpty) {
@@ -196,59 +220,134 @@ class _LibraryScreenState extends State<LibraryScreen>
       ...List.generate(26, (i) => String.fromCharCode(65 + i))
     ];
 
-    return Row(
+    return Stack(
       children: [
-        Expanded(
-          child: ListView.builder(
-            controller: _tracksScrollCtrl,
-            padding: const EdgeInsets.fromLTRB(16, 8, 0, 180),
-            itemCount: songs.length,
-            itemExtent: _tileHeight,
-            itemBuilder: (context, i) {
-              final song = songs[i];
-              return Selector<AudioProvider, bool>(
-                selector: (_, a) => a.currentSong?.id == song.id,
-                builder: (context, isPlaying, _) => TrackTile(
-                  song: song,
-                  isPlaying: isPlaying,
-                  onTap: () {
-                    library.addToRecentlyPlayed(song);
-                    library.incrementPlayCount(song.id);
-                    context.read<AudioProvider>().playSong(song, songs, i);
-                  },
-                  onMore: () => _showTrackOptions(context, song, library),
+        Row(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                controller: _tracksScrollCtrl,
+                padding: const EdgeInsets.fromLTRB(16, 8, 0, 180),
+                itemCount: songs.length,
+                itemExtent: _tileHeight,
+                itemBuilder: (context, i) {
+                  final song = songs[i];
+                  return Selector<AudioProvider, bool>(
+                    selector: (_, a) => a.currentSong?.id == song.id,
+                    builder: (context, isPlaying, _) => TrackTile(
+                      song: song,
+                      isPlaying: isPlaying,
+                      onTap: () {
+                        library.addToRecentlyPlayed(song);
+                        library.incrementPlayCount(song.id);
+                        context.read<AudioProvider>().playSong(song, songs, i);
+                      },
+                      onMore: () => _showTrackOptions(context, song, library),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // ── Sidebar: Listener en vez de GestureDetector ────────────
+            // Listener usa eventos de puntero (nivel bajo) que NO pasan
+            // por la arena de gestos → NestedScrollView no los roba.
+            Listener(
+              onPointerDown: (e) {
+                setState(() => _showLetterOverlay = true);
+                _updateLetterFromGlobal(e.position);
+              },
+              onPointerMove: (e) {
+                _updateLetterFromGlobal(e.position);
+              },
+              onPointerUp: (_) {
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  if (mounted) {
+                    setState(() {
+                      _showLetterOverlay = false;
+                      _activeLetter = null;
+                    });
+                  }
+                });
+              },
+              onPointerCancel: (_) {
+                setState(() {
+                  _showLetterOverlay = false;
+                  _activeLetter = null;
+                });
+              },
+              child: Container(
+                key: _sidebarKey,
+                width: 28,  // área táctil más amplia
+                color: Colors.transparent,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: letters.map((letter) {
+                    final enabled = _letterIndex.containsKey(letter);
+                    final isActive = _activeLetter == letter;
+                    return AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 80),
+                      style: TextStyle(
+                        fontSize: isActive ? 12 : 9,
+                        fontWeight: FontWeight.w700,
+                        color: isActive
+                            ? AppTheme.tertiary
+                            : enabled
+                                ? AppTheme.primary
+                                : AppTheme.outline.withAlpha(60),
+                      ),
+                      child: Text(letter, textAlign: TextAlign.center),
+                    );
+                  }).toList(),
                 ),
-              );
-            },
-          ),
+              ),
+            ),
+          ],
         ),
-        // Sidebar alfabético
-        Container(
-          width: 22,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: LayoutBuilder(builder: (_, c) {
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: letters.map((letter) {
-                final enabled = _letterIndex.containsKey(letter);
-                return GestureDetector(
-                  onTap: enabled ? () => _scrollToLetter(letter) : null,
-                  child: Text(
-                    letter,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: enabled
-                          ? AppTheme.primary
-                          : AppTheme.outline.withAlpha(60),
+
+        // ── Overlay: letra grande centrada ────────────────────────────
+        if (_showLetterOverlay && _activeLetter != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Center(
+                child: AnimatedScale(
+                  scale: _showLetterOverlay ? 1.0 : 0.6,
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOutBack,
+                  child: Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceContainerHigh.withAlpha(220),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: AppTheme.primary.withAlpha(60), width: 1),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(100),
+                          blurRadius: 24,
+                        )
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        _activeLetter!,
+                        style: TextStyle(
+                          fontSize: 52,
+                          fontWeight: FontWeight.w900,
+                          color: _letterIndex.containsKey(_activeLetter)
+                              ? AppTheme.tertiary
+                              : AppTheme.outline,
+                          height: 1,
+                        ),
+                      ),
                     ),
                   ),
-                );
-              }).toList(),
-            );
-          }),
-        ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

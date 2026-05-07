@@ -279,7 +279,12 @@ class LibraryProvider extends ChangeNotifier {
   List<SongModel> getSongsForPlaylist(String playlistId) {
     final pl = _playlists.where((p) => p.id == playlistId).firstOrNull;
     if (pl == null) return [];
-    return _songs.where((s) => pl.songIds.contains(s.id)).toList();
+    // Mapa para O(1) lookup — devuelve en el orden exacto de songIds (respeta drag & drop)
+    final songMap = {for (final s in _songs) s.id: s};
+    return pl.songIds
+        .map((id) => songMap[id])
+        .whereType<SongModel>()
+        .toList();
   }
 
   Future<void> _savePlaylists() async {

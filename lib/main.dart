@@ -25,67 +25,61 @@ Future<void> main() async {
     systemNavigationBarIconBrightness: Brightness.light,
   ));
 
-  // Solicita permisos necesarios para notificaciones y segundo plano
   await _requestPermissions();
 
-  // Inicializa AudioService (notificación + pantalla de bloqueo)
   ACARMusicHandler audioHandler;
   try {
     audioHandler = await AudioService.init(
       builder: () => ACARMusicHandler(),
-      config: const AudioServiceConfig(
+      config: AudioServiceConfig(
         androidNotificationChannelId:          'com.acar.music.playback',
         androidNotificationChannelName:        'ACARMusic',
-        androidNotificationChannelDescription: 'Reproducción de música',
+        androidNotificationChannelDescription: 'Reproduccion de musica',
         androidNotificationIcon:               'mipmap/ic_launcher',
-        // false = mantiene el servicio en primer plano aunque esté pausado.
-        // Evita que Android mate el proceso y desaparezca el controlador.
-        androidStopForegroundOnPause: false,
-        androidNotificationOngoing:   false,
-        notificationColor: Color(0xFF000000),
+        androidStopForegroundOnPause:          false,
+        androidNotificationOngoing:            true,
       ),
     );
   } catch (e) {
-    // Si AudioService falla (manifest no configurado aún),
-    // usa el handler directamente sin notificación del sistema
-    debugPrint('AudioService.init falló, usando modo sin notificación: $e');
+    debugPrint('AudioService.init fallo: $e');
     audioHandler = ACARMusicHandler();
   }
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AudioProvider(audioHandler)),
         ChangeNotifierProvider(create: (_) => LibraryProvider()),
+        ChangeNotifierProxyProvider<LibraryProvider, AudioProvider>(
+          create: (_) => AudioProvider(audioHandler),
+          update: (_, library, audio) {
+            audio!.bindLibrary(
+              songs:         library.songs,
+              hasPermission: library.hasPermission,
+              isLoading:     library.isLoading,
+            );
+            return audio;
+          },
+        ),
       ],
       child: const ACARMusicApp(),
     ),
   );
 }
 
-/// Solicita todos los permisos necesarios al inicio
 Future<void> _requestPermissions() async {
-  // Android 13+: permiso de notificaciones (necesario para mostrar el controlador)
   if (await Permission.notification.isDenied) {
     await Permission.notification.request();
   }
-
-  // Permisos de audio
   if (await Permission.audio.isDenied) {
     await Permission.audio.request();
   }
-
-  // Android ≤ 12: almacenamiento externo
   if (await Permission.storage.isDenied) {
     await Permission.storage.request();
   }
-
-  // Samsung / MIUI / etc: permiso para iniciar en segundo plano
-  // (No interrumpe si falla — es opcional en algunos dispositivos)
   try {
-    final ignoreBattery = Permission.ignoreBatteryOptimizations;
-    if (await ignoreBattery.isDenied) {
-      await ignoreBattery.request();
+    final status = await Permission.ignoreBatteryOptimizations.status;
+    if (!status.isGranted) {
+      await Permission.ignoreBatteryOptimizations.request();
     }
   } catch (_) {}
 }
