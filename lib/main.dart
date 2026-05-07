@@ -1,11 +1,8 @@
-import 'dart:convert';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'audio/audio_handler.dart';
 import 'providers/audio_provider.dart';
@@ -31,30 +28,38 @@ Future<void> main() async {
   await _requestPermissions();
 
   ACARMusicHandler audioHandler;
-  
   try {
     audioHandler = await AudioService.init(
       builder: () => ACARMusicHandler(),
       config: AudioServiceConfig(
-        androidNotificationChannelId: 'com.acar.music.playback',
-        androidNotificationChannelName: 'ACARMusic',
-        androidNotificationChannelDescription: 'Reproducción de música',
-        androidNotificationIcon: 'mipmap/ic_launcher',
-        androidStopForegroundOnPause: false,
-        androidNotificationOngoing: true,
-        androidShowNotificationBadge: true,
+        androidNotificationChannelId:          'com.acar.music.playback',
+        androidNotificationChannelName:        'ACARMusic',
+        androidNotificationChannelDescription: 'Reproduccion de musica',
+        androidNotificationIcon:               'mipmap/ic_launcher',
+        androidStopForegroundOnPause:          false,
+        androidNotificationOngoing:            true,
       ),
     );
   } catch (e) {
-    debugPrint('AudioService.init falló, usando modo sin notificación: $e');
+    debugPrint('AudioService.init fallo: $e');
     audioHandler = ACARMusicHandler();
   }
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AudioProvider(audioHandler)),
         ChangeNotifierProvider(create: (_) => LibraryProvider()),
+        ChangeNotifierProxyProvider<LibraryProvider, AudioProvider>(
+          create: (_) => AudioProvider(audioHandler),
+          update: (_, library, audio) {
+            audio!.bindLibrary(
+              songs:         library.songs,
+              hasPermission: library.hasPermission,
+              isLoading:     library.isLoading,
+            );
+            return audio;
+          },
+        ),
       ],
       child: const ACARMusicApp(),
     ),
@@ -72,9 +77,9 @@ Future<void> _requestPermissions() async {
     await Permission.storage.request();
   }
   try {
-    const ignoreBattery = Permission.ignoreBatteryOptimizations;
-    if (await ignoreBattery.isDenied) {
-      await ignoreBattery.request();
+    final status = await Permission.ignoreBatteryOptimizations.status;
+    if (!status.isGranted) {
+      await Permission.ignoreBatteryOptimizations.request();
     }
   } catch (_) {}
 }

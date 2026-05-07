@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,19 +11,15 @@ import '../audio/audio_handler.dart';
 
 enum AppRepeatState { off, all, one }
 
-class AudioProvider extends ChangeNotifier {
+class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   AudioProvider(this._handler) {
     _init();
+    WidgetsBinding.instance.addObserver(this);
     _handler.onSkipToNext = skipNext;
     _handler.onSkipToPrevious = skipPrevious;
-    _handler.onPlaybackStateChanged = () {
-      _scheduleSessionSave();
-      notifyListeners();
-    };
   }
 
   final ACARMusicHandler _handler;
-
   AudioPlayer get _player => _handler.player;
 
   List<SongModel> _queue = [];
@@ -31,16 +28,17 @@ class AudioProvider extends ChangeNotifier {
   AppRepeatState _repeatMode = AppRepeatState.off;
   bool _isPlaying = false;
 
-  final ValueNotifier<Duration> positionNotifier =
-      ValueNotifier(Duration.zero);
-  final ValueNotifier<Duration> durationNotifier =
-      ValueNotifier(Duration.zero);
+  // Historial de reproducción en modo shuffle — permite Anterior correcto
+  final List<int> _shuffleHistory = [];
+  static const int _maxHistory = 50;
+
+  final ValueNotifier<Duration> positionNotifier = ValueNotifier(Duration.zero);
+  final ValueNotifier<Duration> durationNotifier = ValueNotifier(Duration.zero);
 
   Timer? _sleepTimer;
   Timer? _countdownTimer;
   Timer? _saveDebounceTimer;
-  final ValueNotifier<Duration> sleepRemainingNotifier =
-      ValueNotifier(Duration.zero);
+  final ValueNotifier<Duration> sleepRemainingNotifier = ValueNotifier(Duration.zero);
   int _sleepTimerMinutes = 0;
 
   SharedPreferences? _prefs;
@@ -64,9 +62,7 @@ class AudioProvider extends ChangeNotifier {
           : null;
 
   void _init() {
-    SharedPreferences.getInstance().then((prefs) {
-      _prefs = prefs;
-    });
+    SharedPreferences.getInstance().then((prefs) => _prefs = prefs);
 
     _player.positionStream.listen((pos) {
       positionNotifier.value = pos;
@@ -79,14 +75,25 @@ class AudioProvider extends ChangeNotifier {
     _player.playerStateStream.listen((state) {
       final wasPlaying = _isPlaying;
       _isPlaying = state.playing;
-      if (wasPlaying != _isPlaying) {
-        notifyListeners();
-      }
+      if (wasPlaying != _isPlaying) notifyListeners();
       _saveSession();
       if (state.processingState == ProcessingState.completed) {
         _onTrackCompleted();
       }
     });
+  }
+
+  // ── Guarda sesión INMEDIATAMENTE al ir a background ─────────────────────
+  // Sin debounce — persiste la posición exacta antes de que Android
+  // pueda matar el proceso. Fix del bug "no guarda el minuto exacto".
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _saveDebounceTimer?.cancel();
+      _saveSession(); // sin await — fire and forget
+    }
   }
 
   void bindLibrary({
@@ -98,8 +105,13 @@ class AudioProvider extends ChangeNotifier {
     _restoreSessionIfPossible(songs);
   }
 
-  Future<void> playSong(
-      SongModel song, List<SongModel> queue, int index) async {
+  Future<void> playSong(SongModel song, List<SongModel> queue, int index,
+      {bool addToHistory = true}) async {
+    // Registra en historial si shuffle está activo y viene de skipNext/_onTrackCompleted
+    if (_isShuffleOn && addToHistory && _currentIndex >= 0) {
+      _shuffleHistory.add(_currentIndex);
+      if (_shuffleHistory.length > _maxHistory) _shuffleHistory.removeAt(0);
+    }
     _queue = queue;
     _currentIndex = index;
     notifyListeners();
@@ -107,9 +119,7 @@ class AudioProvider extends ChangeNotifier {
     try {
       final path = song.data;
       if (path.isEmpty) return;
-
       _handler.setCurrentSong(song);
-
       await _player.setFilePath(path);
       await _player.play();
       _isPlaying = true;
@@ -128,15 +138,18 @@ class AudioProvider extends ChangeNotifier {
     final dur = durationNotifier.value;
     if (dur.inMilliseconds == 0) return;
     await _player.seek(
-      Duration(milliseconds: (progress * dur.inMilliseconds).round()),
-    );
+        Duration(milliseconds: (progress * dur.inMilliseconds).round()));
     await _saveSession();
   }
 
   Future<void> skipNext() async {
     if (_queue.isEmpty) return;
     if (_isShuffleOn) {
-      final rand = DateTime.now().millisecondsSinceEpoch % _queue.length;
+      // Shuffle: elige aleatoria distinta a la actual
+      int rand;
+      do {
+        rand = DateTime.now().microsecondsSinceEpoch % _queue.length;
+      } while (_queue.length > 1 && rand == _currentIndex);
       await playSong(_queue[rand], _queue, rand);
       return;
     }
@@ -150,16 +163,28 @@ class AudioProvider extends ChangeNotifier {
 
   Future<void> skipPrevious() async {
     if (_queue.isEmpty) return;
+    // Si llevan más de 3s en la pista → reinicia desde el inicio
     if (positionNotifier.value.inSeconds > 3) {
       await _player.seek(Duration.zero);
       await _saveSession();
       return;
     }
+    // Shuffle activo: regresa a la canción que sonó antes (historial real)
+    if (_isShuffleOn && _shuffleHistory.isNotEmpty) {
+      final prevIdx = _shuffleHistory.removeLast();
+      if (prevIdx >= 0 && prevIdx < _queue.length) {
+        // addToHistory: false → no agrega al historial al ir hacia atrás
+        await playSong(_queue[prevIdx], _queue, prevIdx, addToHistory: false);
+        return;
+      }
+    }
+    // Sin shuffle (o historial vacío): índice lineal
     final prev = _currentIndex - 1;
     if (prev >= 0) {
-      await playSong(_queue[prev], _queue, prev);
+      await playSong(_queue[prev], _queue, prev, addToHistory: false);
     } else if (_repeatMode == AppRepeatState.all) {
-      await playSong(_queue[_queue.length - 1], _queue, _queue.length - 1);
+      await playSong(_queue[_queue.length - 1], _queue, _queue.length - 1,
+          addToHistory: false);
     }
   }
 
@@ -181,6 +206,7 @@ class AudioProvider extends ChangeNotifier {
 
   void toggleShuffle() {
     _isShuffleOn = !_isShuffleOn;
+    if (!_isShuffleOn) _shuffleHistory.clear();
     notifyListeners();
     _saveSession();
   }
@@ -200,7 +226,6 @@ class AudioProvider extends ChangeNotifier {
     _countdownTimer?.cancel();
     _sleepTimerMinutes = minutes;
     sleepRemainingNotifier.value = Duration(minutes: minutes);
-
     if (minutes > 0) {
       final endTime = DateTime.now().add(Duration(minutes: minutes));
       _sleepTimer = Timer(Duration(minutes: minutes), () async {
@@ -229,30 +254,17 @@ class AudioProvider extends ChangeNotifier {
     _prefs = prefs;
 
     final raw = prefs.getString(_sessionKey);
-    if (raw == null) {
-      _restoreAttempted = true;
-      return;
-    }
+    if (raw == null) { _restoreAttempted = true; return; }
 
     final map = jsonDecode(raw);
-    if (map is! Map<String, dynamic>) {
-      _restoreAttempted = true;
-      return;
-    }
+    if (map is! Map<String, dynamic>) { _restoreAttempted = true; return; }
 
     final savedPath = map['currentPath'] as String?;
     final savedId = (map['currentId'] as num?)?.toInt();
-    if (savedPath == null && savedId == null) {
-      _restoreAttempted = true;
-      return;
-    }
+    if (savedPath == null && savedId == null) { _restoreAttempted = true; return; }
 
-    final songsById = <int, SongModel>{};
-    final songsByPath = <String, SongModel>{};
-    for (final song in librarySongs) {
-      songsById[song.id] = song;
-      songsByPath[song.data] = song;
-    }
+    final songsById = <int, SongModel>{for (final s in librarySongs) s.id: s};
+    final songsByPath = <String, SongModel>{for (final s in librarySongs) s.data: s};
 
     final restoredQueue = <SongModel>[];
     final queueIdsRaw = map['queueIds'];
@@ -279,16 +291,10 @@ class AudioProvider extends ChangeNotifier {
       }
     }
 
-    SongModel? restoredSong;
-    if (savedId != null) {
-      restoredSong = songsById[savedId];
-    }
+    SongModel? restoredSong = savedId != null ? songsById[savedId] : null;
     restoredSong ??= savedPath != null ? songsByPath[savedPath] : null;
 
-    if (restoredSong == null) {
-      _restoreAttempted = true;
-      return;
-    }
+    if (restoredSong == null) { _restoreAttempted = true; return; }
 
     if (!restoredQueue.any((s) => s.id == restoredSong!.id)) {
       restoredQueue.add(restoredSong);
@@ -310,22 +316,17 @@ class AudioProvider extends ChangeNotifier {
     final hasActiveSource = _player.audioSource != null ||
         _player.processingState != ProcessingState.idle;
 
-    final positionMs = (map['positionMs'] as num?)?.toInt() ?? 0;
-    
     if (!hasActiveSource) {
       _restoringSession = true;
       try {
         await _player.setFilePath(restoredSong.data);
         _handler.setCurrentSong(restoredSong);
 
+        final positionMs = (map['positionMs'] as num?)?.toInt() ?? 0;
         if (positionMs > 0) {
           await _player.seek(Duration(milliseconds: positionMs));
-          positionNotifier.value = Duration(milliseconds: positionMs);
         }
-
-        if (map['wasPlaying'] as bool? ?? false) {
-          await _player.play();
-        }
+        // No reanuda automáticamente — igual que Samsung Music
       } catch (e) {
         debugPrint('Error restaurando sesión: $e');
       } finally {
@@ -333,55 +334,46 @@ class AudioProvider extends ChangeNotifier {
       }
     } else {
       _handler.setCurrentSong(restoredSong);
-      if (positionMs > 0) {
-        await _player.seek(Duration(milliseconds: positionMs));
-        positionNotifier.value = Duration(milliseconds: positionMs);
-      }
     }
 
     _restoreAttempted = true;
-    await _saveSession();
   }
 
-  AppRepeatState _repeatModeFromName(String? value) {
-    return switch (value) {
-      'all' => AppRepeatState.all,
-      'one' => AppRepeatState.one,
-      _ => AppRepeatState.off,
-    };
-  }
+  AppRepeatState _repeatModeFromName(String? value) => switch (value) {
+        'all' => AppRepeatState.all,
+        'one' => AppRepeatState.one,
+        _ => AppRepeatState.off,
+      };
 
   void _scheduleSessionSave() {
     if (currentSong == null || _restoringSession) return;
     _saveDebounceTimer?.cancel();
-    _saveDebounceTimer = Timer(
-      const Duration(milliseconds: 700),
-      _saveSession,
-    );
+    _saveDebounceTimer =
+        Timer(const Duration(milliseconds: 700), _saveSession);
   }
 
   Future<void> _saveSession() async {
     if (_restoringSession) return;
-
     final song = currentSong;
     if (song == null) return;
 
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     _prefs = prefs;
 
-    final payload = <String, dynamic>{
-      'currentId': song.id,
-      'currentPath': song.data,
-      'currentIndex': _currentIndex,
-      'positionMs': _player.position.inMilliseconds,
-      'wasPlaying': _player.playing,
-      'isShuffleOn': _isShuffleOn,
-      'repeatMode': _repeatMode.name,
-      'queueIds': _queue.map((s) => s.id).toList(),
-      'queuePaths': _queue.map((s) => s.data).toList(),
-    };
-
-    await prefs.setString(_sessionKey, jsonEncode(payload));
+    await prefs.setString(
+      _sessionKey,
+      jsonEncode(<String, dynamic>{
+        'currentId':    song.id,
+        'currentPath':  song.data,
+        'currentIndex': _currentIndex,
+        'positionMs':   _player.position.inMilliseconds,
+        'wasPlaying':   _player.playing,
+        'isShuffleOn':  _isShuffleOn,
+        'repeatMode':   _repeatMode.name,
+        'queueIds':     _queue.map((s) => s.id).toList(),
+        'queuePaths':   _queue.map((s) => s.data).toList(),
+      }),
+    );
   }
 
   String formatDuration(Duration d) {
@@ -392,6 +384,7 @@ class AudioProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sleepTimer?.cancel();
     _countdownTimer?.cancel();
     _saveDebounceTimer?.cancel();

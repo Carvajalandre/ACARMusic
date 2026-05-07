@@ -49,14 +49,12 @@ class PlaylistsScreen extends StatelessWidget {
         ),
       );
 
-  // ── Tarjetas grandes (similar a Samsung Music) ────────────────────────────
   Widget _buildTopCards(BuildContext context, LibraryProvider library) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Fila superior: Recién añadidas + Más escuchadas
           SizedBox(
             height: 130,
             child: Row(
@@ -98,7 +96,6 @@ class PlaylistsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // Fila inferior: Favoritos + Recientes
           SizedBox(
             height: 130,
             child: Row(
@@ -153,7 +150,6 @@ class PlaylistsScreen extends StatelessWidget {
                 fontWeight: FontWeight.w800)),
       );
 
-  // ── Lista de playlists personalizadas ─────────────────────────────────────
   SliverList _buildPlaylistsList(
       BuildContext context, LibraryProvider library) {
     if (library.playlists.isEmpty) {
@@ -256,8 +252,8 @@ class PlaylistsScreen extends StatelessWidget {
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancelar',
-                  style:
-                      GoogleFonts.manrope(color: AppTheme.onSurfaceVariant))),
+                  style: GoogleFonts.manrope(
+                      color: AppTheme.onSurfaceVariant))),
           TextButton(
             onPressed: () {
               if (ctrl.text.trim().isNotEmpty) {
@@ -352,8 +348,8 @@ class PlaylistsScreen extends StatelessWidget {
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancelar',
-                  style:
-                      GoogleFonts.manrope(color: AppTheme.onSurfaceVariant))),
+                  style: GoogleFonts.manrope(
+                      color: AppTheme.onSurfaceVariant))),
           TextButton(
             onPressed: () {
               if (ctrl.text.trim().isNotEmpty) {
@@ -371,7 +367,6 @@ class PlaylistsScreen extends StatelessWidget {
   }
 }
 
-// ── Tarjeta superior ──────────────────────────────────────────────────────────
 class _TopCard extends StatelessWidget {
   final String title;
   final int count;
@@ -406,7 +401,8 @@ class _TopCard extends StatelessWidget {
             Positioned(
                 right: -8,
                 bottom: -12,
-                child: Icon(icon, color: Colors.white.withAlpha(18), size: 70)),
+                child: Icon(icon,
+                    color: Colors.white.withAlpha(18), size: 70)),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
