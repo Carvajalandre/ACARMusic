@@ -745,7 +745,7 @@ class _PlayerContentState extends State<_PlayerContent>
                 _showComingSoon(context, 'Ecualizador');
               },
             ),
-            // Temporizador de sueño — navega a Ajustes (ya implementado)
+            // Temporizador de sueño — funcional, igual que en Ajustes
             ListTile(
               leading: const Icon(Icons.bedtime_rounded,
                   color: AppTheme.primary),
@@ -753,10 +753,22 @@ class _PlayerContentState extends State<_PlayerContent>
                   style: TextStyle(
                       color: AppTheme.onSurface,
                       fontWeight: FontWeight.w600)),
-              subtitle: const Text('Ya disponible en Ajustes',
+              subtitle: Selector<AudioProvider, int>(
+                selector: (_, a) => a.sleepTimerMinutes,
+                builder: (_, minutes, __) => Text(
+                  minutes > 0 ? '$minutes min activo' : 'Desactivado',
                   style: TextStyle(
-                      color: AppTheme.onSurfaceVariant, fontSize: 11)),
-              onTap: () => Navigator.pop(ctx),
+                      color: minutes > 0
+                          ? AppTheme.primary
+                          : AppTheme.onSurfaceVariant,
+                      fontSize: 11),
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showSleepTimerSheet(context,
+                    context.read<AudioProvider>());
+              },
             ),
             // Ajustes
             ListTile(
@@ -805,6 +817,122 @@ class _PlayerContentState extends State<_PlayerContent>
                     color: AppTheme.primary, fontWeight: FontWeight.bold)),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Temporizador de sueño — idéntico al de settings_screen ───────────────
+  void _showSleepTimerSheet(BuildContext context, AudioProvider audio) {
+    final presets = [15, 30, 45, 60, 90, 120];
+    final customCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerHigh,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding:
+            EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36, height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              decoration: BoxDecoration(
+                  color: AppTheme.outline,
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Text('Temporizador de sueño',
+                  style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800)),
+            ),
+            // Desactivado
+            ListTile(
+              title: const Text('Desactivado',
+                  style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.w600)),
+              trailing: audio.sleepTimerMinutes == 0
+                  ? const Icon(Icons.check_rounded, color: AppTheme.primary)
+                  : null,
+              onTap: () {
+                audio.cancelSleepTimer();
+                Navigator.pop(ctx);
+              },
+            ),
+            // Presets
+            ...presets.map((min) => ListTile(
+                  title: Text('$min minutos',
+                      style: const TextStyle(
+                          color: AppTheme.onSurface,
+                          fontWeight: FontWeight.w600)),
+                  trailing: audio.sleepTimerMinutes == min
+                      ? const Icon(Icons.check_rounded,
+                          color: AppTheme.primary)
+                      : null,
+                  onTap: () {
+                    audio.setSleepTimer(min);
+                    Navigator.pop(ctx);
+                  },
+                )),
+            // Tiempo personalizado
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: customCtrl,
+                      keyboardType: TextInputType.number,
+                      style:
+                          const TextStyle(color: AppTheme.onSurface),
+                      decoration: const InputDecoration(
+                        hintText: 'Minutos personalizados',
+                        hintStyle: TextStyle(
+                            color: AppTheme.onSurfaceVariant,
+                            fontSize: 13),
+                        enabledBorder: UnderlineInputBorder(
+                            borderSide:
+                                BorderSide(color: AppTheme.outline)),
+                        focusedBorder: UnderlineInputBorder(
+                            borderSide:
+                                BorderSide(color: AppTheme.primary)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      final min =
+                          int.tryParse(customCtrl.text.trim());
+                      if (min != null && min > 0) {
+                        audio.setSleepTimer(min);
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: AppTheme.onPrimary,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('OK',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
