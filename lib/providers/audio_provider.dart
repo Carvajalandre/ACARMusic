@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -38,12 +38,16 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _sleepTimer;
   Timer? _countdownTimer;
   Timer? _saveDebounceTimer;
-  final ValueNotifier<Duration> sleepRemainingNotifier = ValueNotifier(Duration.zero);
+  final ValueNotifier<Duration> sleepRemainingNotifier =
+      ValueNotifier(Duration.zero);
   int _sleepTimerMinutes = 0;
 
   SharedPreferences? _prefs;
   bool _restoreAttempted = false;
   bool _restoringSession = false;
+
+  /// Evita llamadas concurrentes a playSong
+  bool _changingTrack = false;
 
   static const String _sessionKey = 'audio_session_v1';
 
@@ -73,6 +77,11 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
         .listen((dur) => durationNotifier.value = dur ?? Duration.zero);
 
     _player.playerStateStream.listen((state) {
+      // Durante cambio de pista, ignorar TODOS los eventos del stream.
+      // Previene: loop infinito de _onTrackCompleted, saves concurrentes,
+      // y notifyListeners con estado inconsistente.
+      if (_changingTrack) return;
+
       final wasPlaying = _isPlaying;
       _isPlaying = state.playing;
       if (wasPlaying != _isPlaying) notifyListeners();
@@ -105,40 +114,111 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     _restoreSessionIfPossible(songs);
   }
 
-  Future<void> playSong(SongModel song, List<SongModel> queue, int index,
+  Future<void> playSong(SongModel song, List<SongModel> newQueue, int index,
       {bool addToHistory = true}) async {
-    // Registra en historial si shuffle está activo y viene de skipNext/_onTrackCompleted
-    if (_isShuffleOn && addToHistory && _currentIndex >= 0) {
-      _shuffleHistory.add(_currentIndex);
-      if (_shuffleHistory.length > _maxHistory) _shuffleHistory.removeAt(0);
-    }
-    _queue = queue;
-    _currentIndex = index;
-    notifyListeners();
+    // Guard: evita llamadas concurrentes que causan crash
+    if (_changingTrack) return;
+    _changingTrack = true;
 
+    // Suprimir broadcasts al platform channel durante la transición.
+    _handler.suppressBroadcast = true;
+
+    // Log diagnóstico: guarda paso a paso para identificar crashes nativos.
+    // Si la app crashea, al re-abrir mostrará hasta qué paso llegó.
+    String lastStep = 'inicio';
     try {
+      final prefs = _prefs ?? await SharedPreferences.getInstance();
+      _prefs = prefs;
+
+      Future<void> logStep(String step) async {
+        lastStep = step;
+        await prefs.setString('last_crash_log',
+            'playSong crash diagnostic\n'
+            'Paso: $step\n'
+            'Song: ${song.title}\n'
+            'Path: ${song.data}\n'
+            'Index: $index\n'
+            'QueueLen: ${newQueue.length}\n'
+            'PlayerState: ${_player.processingState}\n'
+            'Playing: ${_player.playing}');
+      }
+
+      await logStep('1_shuffle_history');
+      if (_isShuffleOn && addToHistory && _currentIndex >= 0) {
+        _shuffleHistory.add(_currentIndex);
+        if (_shuffleHistory.length > _maxHistory) _shuffleHistory.removeAt(0);
+      }
+
+      await logStep('2_update_state');
+      final queueChanged = !identical(_queue, newQueue) ||
+          _queue.length != newQueue.length;
+      _queue = newQueue;
+      _currentIndex = index;
+      notifyListeners();
+
       final path = song.data;
-      if (path.isEmpty) return;
-      _handler.setCurrentSong(song);
+      if (path.isEmpty) {
+        await logStep('2b_empty_path_return');
+        return;
+      }
+
+      await logStep('3_check_file');
+      if (!File(path).existsSync()) {
+        await logStep('3b_file_not_found');
+        return;
+      }
+
+      await logStep('4_update_media_session');
+      if (queueChanged) {
+        await _handler.setQueueAndCurrentSong(newQueue, index);
+      } else {
+        await _handler.updateCurrentSong(song, index);
+      }
+
+      await logStep('5_setFilePath');
       await _player.setFilePath(path);
+
+      await logStep('6_enable_broadcast');
+      _handler.suppressBroadcast = false;
+      _handler.refreshPlaybackState();
+
+      await logStep('7_play');
       await _player.play();
+
+      await logStep('8_done');
       _isPlaying = true;
-      await _saveSession();
-    } catch (e) {
-      debugPrint('Error reproduciendo: $e');
+      notifyListeners();
+      _saveSession();
+
+      // Limpiar log de diagnóstico si todo salió bien
+      await prefs.remove('last_crash_log');
+    } catch (e, st) {
+      debugPrint('Error reproduciendo (paso: $lastStep): $e');
+      // Guardar error Dart capturado
+      try {
+        final prefs = _prefs ?? await SharedPreferences.getInstance();
+        await prefs.setString('last_crash_log',
+            'playSong EXCEPTION (paso: $lastStep)\n'
+            'Song: ${song.title}\n'
+            'Error: $e\n'
+            'Stack: $st');
+      } catch (_) {}
+    } finally {
+      _handler.suppressBroadcast = false;
+      _changingTrack = false;
     }
   }
 
   Future<void> togglePlayPause() async {
-    _player.playing ? await _player.pause() : await _player.play();
+    _player.playing ? await _handler.pause() : await _handler.play();
     await _saveSession();
   }
 
   Future<void> seekTo(double progress) async {
     final dur = durationNotifier.value;
     if (dur.inMilliseconds == 0) return;
-    await _player.seek(
-        Duration(milliseconds: (progress * dur.inMilliseconds).round()));
+    await _player
+        .seek(Duration(milliseconds: (progress * dur.inMilliseconds).round()));
     await _saveSession();
   }
 
@@ -254,17 +334,28 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     _prefs = prefs;
 
     final raw = prefs.getString(_sessionKey);
-    if (raw == null) { _restoreAttempted = true; return; }
+    if (raw == null) {
+      _restoreAttempted = true;
+      return;
+    }
 
     final map = jsonDecode(raw);
-    if (map is! Map<String, dynamic>) { _restoreAttempted = true; return; }
+    if (map is! Map<String, dynamic>) {
+      _restoreAttempted = true;
+      return;
+    }
 
     final savedPath = map['currentPath'] as String?;
     final savedId = (map['currentId'] as num?)?.toInt();
-    if (savedPath == null && savedId == null) { _restoreAttempted = true; return; }
+    if (savedPath == null && savedId == null) {
+      _restoreAttempted = true;
+      return;
+    }
 
     final songsById = <int, SongModel>{for (final s in librarySongs) s.id: s};
-    final songsByPath = <String, SongModel>{for (final s in librarySongs) s.data: s};
+    final songsByPath = <String, SongModel>{
+      for (final s in librarySongs) s.data: s
+    };
 
     final restoredQueue = <SongModel>[];
     final queueIdsRaw = map['queueIds'];
@@ -294,7 +385,10 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     SongModel? restoredSong = savedId != null ? songsById[savedId] : null;
     restoredSong ??= savedPath != null ? songsByPath[savedPath] : null;
 
-    if (restoredSong == null) { _restoreAttempted = true; return; }
+    if (restoredSong == null) {
+      _restoreAttempted = true;
+      return;
+    }
 
     if (!restoredQueue.any((s) => s.id == restoredSong!.id)) {
       restoredQueue.add(restoredSong);
@@ -319,13 +413,14 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (!hasActiveSource) {
       _restoringSession = true;
       try {
+        await _handler.setQueueAndCurrentSong(restoredQueue, _currentIndex);
         await _player.setFilePath(restoredSong.data);
-        _handler.setCurrentSong(restoredSong);
 
         final positionMs = (map['positionMs'] as num?)?.toInt() ?? 0;
         if (positionMs > 0) {
           await _player.seek(Duration(milliseconds: positionMs));
         }
+        _handler.refreshPlaybackState();
         // No reanuda automáticamente — igual que Samsung Music
       } catch (e) {
         debugPrint('Error restaurando sesión: $e');
@@ -333,7 +428,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
         _restoringSession = false;
       }
     } else {
-      _handler.setCurrentSong(restoredSong);
+      await _handler.setQueueAndCurrentSong(restoredQueue, _currentIndex);
     }
 
     _restoreAttempted = true;
@@ -348,8 +443,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   void _scheduleSessionSave() {
     if (currentSong == null || _restoringSession) return;
     _saveDebounceTimer?.cancel();
-    _saveDebounceTimer =
-        Timer(const Duration(milliseconds: 700), _saveSession);
+    _saveDebounceTimer = Timer(const Duration(milliseconds: 700), _saveSession);
   }
 
   Future<void> _saveSession() async {
@@ -363,15 +457,15 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     await prefs.setString(
       _sessionKey,
       jsonEncode(<String, dynamic>{
-        'currentId':    song.id,
-        'currentPath':  song.data,
+        'currentId': song.id,
+        'currentPath': song.data,
         'currentIndex': _currentIndex,
-        'positionMs':   _player.position.inMilliseconds,
-        'wasPlaying':   _player.playing,
-        'isShuffleOn':  _isShuffleOn,
-        'repeatMode':   _repeatMode.name,
-        'queueIds':     _queue.map((s) => s.id).toList(),
-        'queuePaths':   _queue.map((s) => s.data).toList(),
+        'positionMs': _player.position.inMilliseconds,
+        'wasPlaying': _player.playing,
+        'isShuffleOn': _isShuffleOn,
+        'repeatMode': _repeatMode.name,
+        'queueIds': _queue.map((s) => s.id).toList(),
+        'queuePaths': _queue.map((s) => s.data).toList(),
       }),
     );
   }

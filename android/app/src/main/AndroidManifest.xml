@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Android ≤ 12 (API 32) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -33,7 +34,9 @@
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
@@ -48,10 +51,14 @@
             android:value="2" />
 
         <!-- Servicio de audio en segundo plano (audio_service) -->
+        <!-- stopWithTask="false": el servicio SOBREVIVE cuando el usuario
+             desliza la app del reciente — la notificación permanece activa -->
         <service
-            android:name="com.ryanheise.audioservice.AudioServiceBackground"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback">
+            android:name="com.ryanheise.audioservice.AudioService"
+            android:exported="true"
+            android:stopWithTask="false"
+            android:foregroundServiceType="mediaPlayback"
+            tools:ignore="Instantiatable">
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
@@ -60,7 +67,8 @@
         <!-- Receptor de botones de medios (auriculares, Bluetooth) -->
         <receiver
             android:name="com.ryanheise.audioservice.MediaButtonReceiver"
-            android:exported="true">
+            android:exported="true"
+            tools:ignore="Instantiatable">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
