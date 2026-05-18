@@ -96,8 +96,8 @@ class _PlayerContentState extends State<_PlayerContent>
       setState(() {
         _glowColor = palette.vibrantColor?.color ??
             palette.dominantColor?.color ?? _glowColor;
-        _colorA = palette.dominantColor?.color?.withAlpha(180) ?? _colorA;
-        _colorB = palette.mutedColor?.color?.withAlpha(200)    ?? _colorB;
+        _colorA = palette.dominantColor?.color.withAlpha(180) ?? _colorA;
+        _colorB = palette.mutedColor?.color.withAlpha(200)    ?? _colorB;
       });
     } catch (_) { _fallback(song); }
   }

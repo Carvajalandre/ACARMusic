@@ -7,10 +7,6 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:ACARMusic/app.dart';
-import 'package:ACARMusic/providers/audio_provider.dart';
-import 'package:ACARMusic/providers/library_provider.dart';
-
 void main() {
   testWidgets('App loads', (WidgetTester tester) async {
     // Empty test

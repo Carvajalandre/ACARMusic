@@ -1,75 +1,121 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'audio/audio_handler.dart';
 import 'providers/audio_provider.dart';
 import 'providers/library_provider.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+bool _audioServiceOk = false;
+String _audioServiceError = '';
 
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+/// Guarda el último error capturado para mostrarlo en la UI.
+/// Permite diagnosticar crashes sin USB debug.
+const String _crashLogKey = 'last_crash_log';
 
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Colors.black,
-    systemNavigationBarIconBrightness: Brightness.light,
-  ));
-
-  await _requestPermissions();
-
-  ACARMusicHandler audioHandler;
+Future<void> _saveCrashLog(String error) async {
   try {
-    audioHandler = await AudioService.init(
-      builder: () => ACARMusicHandler(),
-      config: AudioServiceConfig(
-        androidNotificationChannelId:          'com.acar.music.playback',
-        androidNotificationChannelName:        'ACARMusic',
-        androidNotificationChannelDescription: 'Reproduccion de musica',
-        androidNotificationIcon:               'mipmap/ic_launcher',
-        androidStopForegroundOnPause:          false,
-        androidNotificationOngoing:            true,
+    final prefs = await SharedPreferences.getInstance();
+    final timestamp = DateTime.now().toIso8601String();
+    await prefs.setString(_crashLogKey, '[$timestamp]\n$error');
+  } catch (_) {}
+}
+
+Future<void> main() async {
+  // Zona de errores: captura TODO lo que Dart puede capturar,
+  // incluyendo errores asíncronos y PlatformExceptions.
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+
+    // Captura errores de Flutter framework (rendering, etc.)
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      _saveCrashLog(
+          'FlutterError: ${details.exception}\n${details.stack ?? ""}');
+    };
+
+    // Captura errores de platform channels no manejados
+    PlatformDispatcher.instance.onError = (error, stack) {
+      debugPrint('⚠️ PlatformDispatcher error: $error\n$stack');
+      _saveCrashLog('PlatformError: $error\n$stack');
+      return true; // Marca como manejado — evita crash
+    };
+
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.black,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ));
+
+    await _requestPermissions();
+
+    ACARMusicHandler audioHandler;
+    try {
+      audioHandler = await AudioService.init(
+        builder: () => ACARMusicHandler(),
+        config: AudioServiceConfig(
+          androidNotificationChannelId: 'com.acar.music.playback',
+          androidNotificationChannelName: 'ACARMusic',
+          androidNotificationChannelDescription: 'Reproducción de música',
+          androidNotificationIcon: 'drawable/ic_notification',
+          androidStopForegroundOnPause: false,
+          androidNotificationOngoing: true,
+        ),
+      );
+      _audioServiceOk = true;
+      _audioServiceError = '';
+      debugPrint('✅ AudioService.init OK');
+    } catch (e, st) {
+      _audioServiceOk = false;
+      _audioServiceError = 'ERROR: $e\n\nStackTrace:\n$st';
+      debugPrint('❌ AudioService.init FALLÓ:\n$_audioServiceError');
+      audioHandler = ACARMusicHandler();
+    }
+
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => LibraryProvider()),
+          ChangeNotifierProxyProvider<LibraryProvider, AudioProvider>(
+            create: (_) => AudioProvider(audioHandler),
+            update: (_, library, audio) {
+              audio!.bindLibrary(
+                songs: library.songs,
+                hasPermission: library.hasPermission,
+                isLoading: library.isLoading,
+              );
+              return audio;
+            },
+          ),
+        ],
+        child: ACARMusicApp(
+          audioServiceOk: _audioServiceOk,
+          audioServiceError: _audioServiceError,
+        ),
       ),
     );
-  } catch (e) {
-    debugPrint('AudioService.init fallo: $e');
-    audioHandler = ACARMusicHandler();
-  }
-
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => LibraryProvider()),
-        ChangeNotifierProxyProvider<LibraryProvider, AudioProvider>(
-          create: (_) => AudioProvider(audioHandler),
-          update: (_, library, audio) {
-            audio!.bindLibrary(
-              songs:         library.songs,
-              hasPermission: library.hasPermission,
-              isLoading:     library.isLoading,
-            );
-            return audio;
-          },
-        ),
-      ],
-      child: const ACARMusicApp(),
-    ),
-  );
+  }, (error, stack) {
+    // Captura errores no manejados en la zona (async sin try/catch)
+    debugPrint('⚠️ Zone error: $error\n$stack');
+    _saveCrashLog('ZoneError: $error\n$stack');
+  });
 }
 
 Future<void> _requestPermissions() async {
-  if (await Permission.notification.isDenied) {
-    await Permission.notification.request();
-  }
   if (await Permission.audio.isDenied) {
     await Permission.audio.request();
   }
@@ -77,8 +123,7 @@ Future<void> _requestPermissions() async {
     await Permission.storage.request();
   }
   try {
-    final status = await Permission.ignoreBatteryOptimizations.status;
-    if (!status.isGranted) {
+    if (!(await Permission.ignoreBatteryOptimizations.isGranted)) {
       await Permission.ignoreBatteryOptimizations.request();
     }
   } catch (_) {}

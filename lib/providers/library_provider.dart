@@ -281,11 +281,11 @@ class LibraryProvider extends ChangeNotifier {
     if (pl == null) return [];
     // Mapa para O(1) lookup — devuelve en el orden exacto de songIds (respeta drag & drop)
     final songMap = {for (final s in _songs) s.id: s};
-    return pl.songIds
-        .map((id) => songMap[id])
-        .whereType<SongModel>()
-        .toList();
+    return pl.songIds.map((id) => songMap[id]).whereType<SongModel>().toList();
   }
+
+  Future<List<SongModel>> getSongsFromPlaylist(Object playlistId) async =>
+      getSongsForPlaylist(playlistId.toString());
 
   Future<void> _savePlaylists() async {
     final prefs = await SharedPreferences.getInstance();
