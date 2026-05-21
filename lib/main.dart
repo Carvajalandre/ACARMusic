@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,6 +29,11 @@ Future<void> _saveCrashLog(String error) async {
 }
 
 Future<void> main() async {
+  // Deshabilita descarga de fuentes en tiempo de ejecución.
+  // Previene ZoneError/SocketException cuando no hay red.
+  // Manrope está bundled en el paquete google_fonts → funciona offline.
+  GoogleFonts.config.allowRuntimeFetching = false;
+
   // Zona de errores: captura TODO lo que Dart puede capturar,
   // incluyendo errores asíncronos y PlatformExceptions.
   runZonedGuarded(() async {
@@ -110,6 +116,16 @@ Future<void> main() async {
     );
   }, (error, stack) {
     // Captura errores no manejados en la zona (async sin try/catch)
+    final msg = error.toString();
+    // Ignorar errores de carga de fuentes — no son críticos para el usuario.
+    // google_fonts intenta descargar pesos específicos de Manrope cuando no
+    // están cacheados localmente. El texto se renderiza con fallback del sistema.
+    if (msg.contains('fonts.gstatic') ||
+        msg.contains('Failed to load font') ||
+        msg.contains('RuntimeFetching is disabled')) {
+      debugPrint('⚠️ Font load error (ignorado): $msg');
+      return;
+    }
     debugPrint('⚠️ Zone error: $error\n$stack');
     _saveCrashLog('ZoneError: $error\n$stack');
   });

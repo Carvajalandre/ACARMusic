@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
@@ -31,6 +32,10 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   // Historial de reproducción en modo shuffle — permite Anterior correcto
   final List<int> _shuffleHistory = [];
   static const int _maxHistory = 50;
+
+  // PRNG criptográficamente no necesario pero sí estadísticamente correcto.
+  // DateTime.microsecondsSinceEpoch % length es determinista si se llama rápido.
+  final Random _random = Random();
 
   final ValueNotifier<Duration> positionNotifier = ValueNotifier(Duration.zero);
   final ValueNotifier<Duration> durationNotifier = ValueNotifier(Duration.zero);
@@ -225,10 +230,10 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> skipNext() async {
     if (_queue.isEmpty) return;
     if (_isShuffleOn) {
-      // Shuffle: elige aleatoria distinta a la actual
+      // Shuffle: elige aleatoria distinta a la actual usando PRNG real
       int rand;
       do {
-        rand = DateTime.now().microsecondsSinceEpoch % _queue.length;
+        rand = _random.nextInt(_queue.length);
       } while (_queue.length > 1 && rand == _currentIndex);
       await playSong(_queue[rand], _queue, rand);
       return;
@@ -250,15 +255,23 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     // Shuffle activo: regresa a la canción que sonó antes (historial real)
-    if (_isShuffleOn && _shuffleHistory.isNotEmpty) {
-      final prevIdx = _shuffleHistory.removeLast();
-      if (prevIdx >= 0 && prevIdx < _queue.length) {
-        // addToHistory: false → no agrega al historial al ir hacia atrás
-        await playSong(_queue[prevIdx], _queue, prevIdx, addToHistory: false);
-        return;
+    if (_isShuffleOn) {
+      if (_shuffleHistory.isNotEmpty) {
+        final prevIdx = _shuffleHistory.removeLast();
+        if (prevIdx >= 0 && prevIdx < _queue.length) {
+          // addToHistory: false → no contamina el historial al ir hacia atrás
+          await playSong(_queue[prevIdx], _queue, prevIdx, addToHistory: false);
+          return;
+        }
       }
+      // Shuffle ON pero historial agotado → reiniciar canción actual.
+      // Nunca navegar linealmente en modo shuffle — evita reproducir
+      // canciones no escuchadas al presionar Anterior repetidamente.
+      await _player.seek(Duration.zero);
+      await _saveSession();
+      return;
     }
-    // Sin shuffle (o historial vacío): índice lineal
+    // Sin shuffle: índice lineal
     final prev = _currentIndex - 1;
     if (prev >= 0) {
       await playSong(_queue[prev], _queue, prev, addToHistory: false);
