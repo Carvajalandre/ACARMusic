@@ -117,12 +117,15 @@ Future<void> main() async {
   }, (error, stack) {
     // Captura errores no manejados en la zona (async sin try/catch)
     final msg = error.toString();
-    // Ignorar errores de carga de fuentes — no son críticos para el usuario.
-    // google_fonts intenta descargar pesos específicos de Manrope cuando no
-    // están cacheados localmente. El texto se renderiza con fallback del sistema.
+    // Ignorar todos los errores de carga de fuentes — no críticos.
+    // Con Manrope bundled localmente, estos errores no deberían ocurrir,
+    // pero si google_fonts intenta cargar variantes no bundled, los silenciamos.
     if (msg.contains('fonts.gstatic') ||
         msg.contains('Failed to load font') ||
-        msg.contains('RuntimeFetching is disabled')) {
+        msg.contains('allowRuntimeFetching') ||
+        msg.contains('was not found in the application assets') ||
+        msg.contains('Ensure Manrope') ||
+        msg.contains('GoogleFonts.config')) {
       debugPrint('⚠️ Font load error (ignorado): $msg');
       return;
     }

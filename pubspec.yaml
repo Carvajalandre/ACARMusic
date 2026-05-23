@@ -1,50 +1,65 @@
 name: acar_music
 description: ACARMusic - Reproductor de música local personal
- 
+
 publish_to: 'none'
- 
+
 version: 1.0.0+1
- 
+
 environment:
   sdk: '>=3.3.0 <4.0.0'
- 
+
 dependencies:
   flutter:
     sdk: flutter
- 
+
   # Audio
   just_audio: ^0.9.40
-  audio_service: ^0.18.15   # ← Notificación + MediaSession del sistema
+  audio_service: ^0.18.15
   audio_session: ^0.1.21
- 
+
   # Media query (leer archivos locales del dispositivo)
   on_audio_query: ^2.9.0
- 
+
   # State management
   provider: ^6.1.2
- 
+
   # Permisos
   permission_handler: ^11.3.1
- 
+
   # Persistencia
   shared_preferences: ^2.3.2
- 
-  # UI
+
+  # UI — google_fonts solo para compatibilidad API; fuentes bundled localmente
   google_fonts: ^6.2.1
- 
+
   # Extracción de colores de portadas
   palette_generator: ^0.3.3+3
- 
-  # Notificaciones locales (opcional como respaldo)
-  #flutter_local_notifications: ^17.0.0
- 
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.14.4
- 
+
 flutter:
   uses-material-design: true
+
   assets:
     - assets/icon/
+    - assets/google_fonts/
+
+  # Manrope bundled localmente — sin dependencia de red
+  # allowRuntimeFetching = false en main.dart garantiza uso offline
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/google_fonts/Manrope-Regular.ttf
+          weight: 400
+        - asset: assets/google_fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/google_fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/google_fonts/Manrope-Bold.ttf
+          weight: 700
+        - asset: assets/google_fonts/Manrope-ExtraBold.ttf
+          weight: 800

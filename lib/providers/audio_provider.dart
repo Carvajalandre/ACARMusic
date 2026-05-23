@@ -128,8 +128,13 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     // Suprimir broadcasts al platform channel durante la transición.
     _handler.suppressBroadcast = true;
 
+    // Señal visual inmediata: la pista anterior se detiene.
+    // Evita que _isPlaying quede con el valor anterior (true) durante la carga
+    // lo que causaba que AnimatedSwitcher mostrara "pausa" incorrectamente.
+    _isPlaying = false;
+    notifyListeners();
+
     // Log diagnóstico: guarda paso a paso para identificar crashes nativos.
-    // Si la app crashea, al re-abrir mostrará hasta qué paso llegó.
     String lastStep = 'inicio';
     try {
       final prefs = _prefs ?? await SharedPreferences.getInstance();
@@ -199,7 +204,6 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
       await prefs.remove('last_crash_log');
     } catch (e, st) {
       debugPrint('Error reproduciendo (paso: $lastStep): $e');
-      // Guardar error Dart capturado
       try {
         final prefs = _prefs ?? await SharedPreferences.getInstance();
         await prefs.setString('last_crash_log',
@@ -211,6 +215,14 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     } finally {
       _handler.suppressBroadcast = false;
       _changingTrack = false;
+      // Sincronizar estado real del player al liberar el guard.
+      // Previene race: playerStateStream puede emitir playing=false brevemente
+      // justo después de _changingTrack=false → AnimatedSwitcher flickea.
+      final actualPlaying = _player.playing;
+      if (_isPlaying != actualPlaying) {
+        _isPlaying = actualPlaying;
+        notifyListeners();
+      }
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
@@ -32,6 +34,7 @@ class SongListScreen extends StatefulWidget {
 class _SongListScreenState extends State<SongListScreen> {
   _SortMode _sortMode = _SortMode.custom;
   late List<SongModel> _sorted;
+  final Random _random = Random();
 
   @override
   void initState() {
@@ -83,8 +86,10 @@ class _SongListScreenState extends State<SongListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final audio = context.read<AudioProvider>();
-    final library = context.read<LibraryProvider>();
+    // NOTA: context.read() aquí — NO se suscribe a cambios. Correcto para evitar
+    // rebuilds innecesarios. El mismo AudioProvider instance siempre.
+    // Las callbacks acceden a context.read() en el momento del tap para
+    // garantizar que nunca usan una referencia stale.
     final isPlaylist = widget.playlistId != null;
 
     return Scaffold(
@@ -121,16 +126,15 @@ class _SongListScreenState extends State<SongListScreen> {
               if (_sorted.isNotEmpty)
                 IconButton(
                   onPressed: () {
-                    final rand =
-                        DateTime.now().millisecondsSinceEpoch % _sorted.length;
-                    audio.playSong(_sorted[rand], _sorted, rand);
+                    final rand = _random.nextInt(_sorted.length);
+                    context.read<AudioProvider>().playSong(_sorted[rand], _sorted, rand);
                   },
                   icon: const Icon(Icons.shuffle_rounded,
                       color: AppTheme.primary, size: 26),
                 ),
               if (_sorted.isNotEmpty)
                 IconButton(
-                  onPressed: () => audio.playSong(_sorted.first, _sorted, 0),
+                  onPressed: () => context.read<AudioProvider>().playSong(_sorted.first, _sorted, 0),
                   icon: const Icon(Icons.play_circle_rounded,
                       color: AppTheme.primary, size: 30),
                 ),
@@ -194,7 +198,7 @@ class _SongListScreenState extends State<SongListScreen> {
               padding: const EdgeInsets.only(bottom: 8),
               sliver: SliverReorderableList(
                 itemCount: _sorted.length,
-                onReorder: (o, n) => _onReorder(o, n, library),
+                onReorder: (o, n) => _onReorder(o, n, context.read<LibraryProvider>()),
                 itemBuilder: (context, i) {
                   final song = _sorted[i];
                   // key en Material (no en el listener) para que el scroll funcione
@@ -208,16 +212,16 @@ class _SongListScreenState extends State<SongListScreen> {
                         song: song,
                         isPlaying: isPlaying,
                         onTap: () {
-                          library.addToRecentlyPlayed(song);
-                          library.incrementPlayCount(song.id);
-                          audio.playSong(song, _sorted, i);
+                          context.read<LibraryProvider>().addToRecentlyPlayed(song);
+                          context.read<LibraryProvider>().incrementPlayCount(song.id);
+                          context.read<AudioProvider>().playSong(song, _sorted, i);
                         },
-                        onMore: () => _showOptions(context, song, library),
+                        onMore: () => _showOptions(context, song, context.read<LibraryProvider>()),
                         trailingOverride:
                             Row(mainAxisSize: MainAxisSize.min, children: [
                           IconButton(
                               onPressed: () =>
-                                  _showOptions(context, song, library),
+                                  _showOptions(context, song, context.read<LibraryProvider>()),
                               icon: const Icon(Icons.more_horiz_rounded,
                                   color: AppTheme.onSurfaceVariant)),
                           // Solo el handle inicia el drag — el resto del tile scrollea normalmente
@@ -248,11 +252,11 @@ class _SongListScreenState extends State<SongListScreen> {
                       song: song,
                       isPlaying: isPlaying,
                       onTap: () {
-                        library.addToRecentlyPlayed(song);
-                        library.incrementPlayCount(song.id);
-                        audio.playSong(song, _sorted, i);
+                        context.read<LibraryProvider>().addToRecentlyPlayed(song);
+                        context.read<LibraryProvider>().incrementPlayCount(song.id);
+                        context.read<AudioProvider>().playSong(song, _sorted, i);
                       },
-                      onMore: () => _showOptions(context, song, library),
+                      onMore: () => _showOptions(context, song, context.read<LibraryProvider>()),
                     ),
                   );
                 },

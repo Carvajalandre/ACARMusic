@@ -7,7 +7,7 @@ import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
 import '../widgets/track_tile.dart';
 
-class PlaylistDetailScreen extends StatelessWidget {
+class PlaylistDetailScreen extends StatefulWidget {
   final int playlistId;
   final String playlistName;
 
@@ -18,14 +18,30 @@ class PlaylistDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<PlaylistDetailScreen> createState() => _PlaylistDetailScreenState();
+}
+
+class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
+  late Future<List<SongModel>> _songsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // Cache the future so it is only loaded once, and not re-evaluated on every rebuild
+    _songsFuture = context.read<LibraryProvider>().getSongsFromPlaylist(widget.playlistId);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final audio = context.watch<AudioProvider>();
-    final library = context.watch<LibraryProvider>();
+    // context.read is used for methods/actions, and we do not use context.watch at the top level
+    // to prevent full rebuilds of the list when audio player state updates.
+    final library = context.read<LibraryProvider>();
+    final audio = context.read<AudioProvider>();
 
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: FutureBuilder<List<SongModel>>(
-        future: library.getSongsFromPlaylist(playlistId),
+        future: _songsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -43,7 +59,7 @@ class PlaylistDetailScreen extends StatelessWidget {
                 pinned: true,
                 flexibleSpace: FlexibleSpaceBar(
                   title: Text(
-                    playlistName,
+                    widget.playlistName,
                     style: GoogleFonts.manrope(
                       color: AppTheme.onSurface,
                       fontWeight: FontWeight.w800,
@@ -125,15 +141,17 @@ class PlaylistDetailScreen extends StatelessWidget {
                   delegate: SliverChildBuilderDelegate(
                     (context, i) {
                       final song = songs[i];
-                      final isPlaying = audio.currentSong?.id == song.id;
-                      return TrackTile(
-                        song: song,
-                        isPlaying: isPlaying,
-                        onTap: () {
-                          library.addToRecentlyPlayed(song);
-                          audio.playSong(song, songs, i);
-                        },
-                        onMore: () => _showTrackOptions(context, song, library),
+                      return Selector<AudioProvider, bool>(
+                        selector: (_, a) => a.currentSong?.id == song.id,
+                        builder: (context, isPlaying, _) => TrackTile(
+                          song: song,
+                          isPlaying: isPlaying,
+                          onTap: () {
+                            library.addToRecentlyPlayed(song);
+                            audio.playSong(song, songs, i);
+                          },
+                          onMore: () => _showTrackOptions(context, song, library),
+                        ),
                       );
                     },
                     childCount: songs.length,
