@@ -11,12 +11,9 @@ class MiniPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Solo escucha cambios de canción (id), no de posición
-    final songId =
-        context.select<AudioProvider, int?>((a) => a.currentSong?.id);
-    final audio = context.read<AudioProvider>();
+    final audio = context.watch<AudioProvider>();
     final song = audio.currentSong;
-    if (songId == null || song == null) return const SizedBox.shrink();
+    if (song == null) return const SizedBox.shrink();
 
     return GestureDetector(
       onTap: () => Navigator.of(context).push(
