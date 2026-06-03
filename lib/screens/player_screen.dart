@@ -278,13 +278,10 @@ class _PlayerContentState extends State<_PlayerContent>
             children: [
               Padding(
                 padding: const EdgeInsets.only(left: 4, top: 4),
-                child: Tooltip(
-                  message: 'Minimizar',
-                  child: IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                        size: 32, color: AppTheme.onSurface),
-                  ),
+                child: IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                      size: 32, color: AppTheme.onSurface),
                 ),
               ),
               Expanded(
@@ -319,13 +316,10 @@ class _PlayerContentState extends State<_PlayerContent>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  Tooltip(
-                    message: 'Más opciones',
-                    child: IconButton(
-                      onPressed: () => _showPlayerOptions(context),
-                      icon: const Icon(Icons.more_vert_rounded,
-                          color: AppTheme.onSurface, size: 22)),
-                  ),
+                  IconButton(
+                    onPressed: () => _showPlayerOptions(context),
+                    icon: const Icon(Icons.more_vert_rounded,
+                        color: AppTheme.onSurface, size: 22)),
                 ]),
                 const Spacer(),
                 // Título fijo 1 línea
@@ -442,25 +436,19 @@ class _PlayerContentState extends State<_PlayerContent>
   Widget _headerPortrait(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
         child: Row(children: [
-          Tooltip(
-            message: 'Minimizar',
-            child: IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                  size: 32, color: AppTheme.onSurface)),
-          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                size: 32, color: AppTheme.onSurface)),
           const Expanded(
             child: Text('ACARMusic',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppTheme.onSurface,
                     fontSize: 17, fontWeight: FontWeight.w800))),
-          Tooltip(
-            message: 'Más opciones',
-            child: IconButton(
-              onPressed: () => _showPlayerOptions(context),
-              icon: const Icon(Icons.more_vert_rounded,
-                  color: AppTheme.onSurface)),
-          ),
+          IconButton(
+            onPressed: () => _showPlayerOptions(context),
+            icon: const Icon(Icons.more_vert_rounded,
+                color: AppTheme.onSurface)),
         ]),
       );
 
@@ -523,110 +511,100 @@ class _PlayerContentState extends State<_PlayerContent>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // ── Shuffle con glow ──────────────────────────────────────
-              Tooltip(
-                message: 'Mezclar',
-                child: TapScale(
-                  onTap: audio.toggleShuffle,
-                  child: _GlowButton(
-                    active: shuffleOn,
-                    activeColor: AppTheme.primary,
-                    glowColor: AppTheme.primary,
-                    child: Icon(Icons.shuffle_rounded,
-                        color: shuffleOn
-                            ? AppTheme.primary
-                            : AppTheme.onSurfaceVariant,
-                        size: 26),
-                  ),
+              TapScale(
+                onTap: audio.toggleShuffle,
+                tooltip: 'Mezclar',
+                child: _GlowButton(
+                  active: shuffleOn,
+                  activeColor: AppTheme.primary,
+                  glowColor: AppTheme.primary,
+                  child: Icon(Icons.shuffle_rounded,
+                      color: shuffleOn
+                          ? AppTheme.primary
+                          : AppTheme.onSurfaceVariant,
+                      size: 26),
                 ),
               ),
               // ── Anterior ──────────────────────────────────────────────
-              Tooltip(
-                message: 'Anterior',
-                child: TapScale(
-                  onTap: audio.skipPrevious,
-                  scale: 0.82,
-                  child: const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Icon(Icons.skip_previous_rounded,
-                        color: AppTheme.onSurface, size: 36),
-                  ),
+              TapScale(
+                onTap: audio.skipPrevious,
+                tooltip: 'Anterior',
+                scale: 0.82,
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Icon(Icons.skip_previous_rounded,
+                      color: AppTheme.onSurface, size: 36),
                 ),
               ),
               // ── Play / Pause con AnimatedSwitcher ─────────────────────
-              Tooltip(
-                message: isPlaying ? 'Pausar' : 'Reproducir',
-                child: TapScale(
-                  onTap: audio.togglePlayPause,
-                  scale: 0.90,
-                  child: Container(
-                    width: 68, height: 68,
-                    decoration: BoxDecoration(
-                      color: AppTheme.tertiary,
-                      shape: BoxShape.circle,
-                      boxShadow: [BoxShadow(
-                          color: _glowColor.withAlpha(80),
-                          blurRadius: 24, spreadRadius: 4)],
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      transitionBuilder: (child, anim) =>
-                          ScaleTransition(scale: anim, child: child),
-                      child: Icon(
-                        isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        key: ValueKey(isPlaying),
-                        color: AppTheme.onTertiary,
-                        size: 34,
-                      ),
+              TapScale(
+                onTap: audio.togglePlayPause,
+                tooltip: isPlaying ? 'Pausar' : 'Reproducir',
+                scale: 0.90,
+                child: Container(
+                  width: 68, height: 68,
+                  decoration: BoxDecoration(
+                    color: AppTheme.tertiary,
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(
+                        color: _glowColor.withAlpha(80),
+                        blurRadius: 24, spreadRadius: 4)],
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    transitionBuilder: (child, anim) =>
+                        ScaleTransition(scale: anim, child: child),
+                    child: Icon(
+                      isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      key: ValueKey(isPlaying),
+                      color: AppTheme.onTertiary,
+                      size: 34,
                     ),
                   ),
                 ),
               ),
               // ── Siguiente ─────────────────────────────────────────────
-              Tooltip(
-                message: 'Siguiente',
-                child: TapScale(
-                  onTap: audio.skipNext,
-                  scale: 0.82,
-                  child: const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Icon(Icons.skip_next_rounded,
-                        color: AppTheme.onSurface, size: 36),
-                  ),
+              TapScale(
+                onTap: audio.skipNext,
+                tooltip: 'Siguiente',
+                scale: 0.82,
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Icon(Icons.skip_next_rounded,
+                      color: AppTheme.onSurface, size: 36),
                 ),
               ),
               // ── Repeat con glow ───────────────────────────────────────
-              Tooltip(
-                message: repeatMode == AppRepeatState.one
+              TapScale(
+                onTap: audio.toggleRepeat,
+                tooltip: repeatMode == AppRepeatState.one
                     ? 'Repetir esta pista'
                     : repeatMode == AppRepeatState.all
                         ? 'Repetir todo'
                         : 'Sin repetición',
-                child: TapScale(
-                  onTap: audio.toggleRepeat,
-                  child: _GlowButton(
-                    active: repeatActive,
-                    activeColor: repeatMode == AppRepeatState.one
-                        ? Colors.amberAccent
-                        : AppTheme.primary,
-                    glowColor: repeatMode == AppRepeatState.one
-                        ? Colors.amberAccent
-                        : AppTheme.primary,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      transitionBuilder: (child, anim) =>
-                          ScaleTransition(scale: anim, child: child),
-                      child: Icon(
-                        repeatIcon,
-                        key: ValueKey(repeatMode),
-                        color: repeatActive
-                            ? (repeatMode == AppRepeatState.one
-                                ? Colors.amberAccent
-                                : AppTheme.primary)
-                            : AppTheme.onSurfaceVariant,
-                        size: 26,
-                      ),
+                child: _GlowButton(
+                  active: repeatActive,
+                  activeColor: repeatMode == AppRepeatState.one
+                      ? Colors.amberAccent
+                      : AppTheme.primary,
+                  glowColor: repeatMode == AppRepeatState.one
+                      ? Colors.amberAccent
+                      : AppTheme.primary,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, anim) =>
+                        ScaleTransition(scale: anim, child: child),
+                    child: Icon(
+                      repeatIcon,
+                      key: ValueKey(repeatMode),
+                      color: repeatActive
+                          ? (repeatMode == AppRepeatState.one
+                              ? Colors.amberAccent
+                              : AppTheme.primary)
+                          : AppTheme.onSurfaceVariant,
+                      size: 26,
                     ),
                   ),
                 ),
@@ -646,46 +624,37 @@ class _PlayerContentState extends State<_PlayerContent>
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Tooltip(
-          message: isFav ? 'Quitar de Favoritos' : 'Agregar a Favoritos',
-          child: _ActionBtn(
-            icon: isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-            label: 'LIKE',
-            color: isFav ? Colors.pinkAccent : AppTheme.onSurfaceVariant,
-            size: iconSize,
-            onTap: () => isFav
-                ? library.removeFromFavorites(song)
-                : library.addToFavorites(song),
-          ),
+        _ActionBtn(
+          icon: isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+          label: 'LIKE',
+          color: isFav ? Colors.pinkAccent : AppTheme.onSurfaceVariant,
+          size: iconSize,
+          onTap: () => isFav
+              ? library.removeFromFavorites(song)
+              : library.addToFavorites(song),
         ),
         SizedBox(width: spacing),
-        Tooltip(
-          message: 'Agregar a Lista',
-          child: _ActionBtn(
-            icon: Icons.playlist_add_rounded,
-            label: 'LISTA',
-            color: AppTheme.onSurfaceVariant,
-            size: iconSize,
-            onTap: () => _addToPlaylistSheet(context, library, song),
-          ),
+        _ActionBtn(
+          icon: Icons.playlist_add_rounded,
+          label: 'LISTA',
+          color: AppTheme.onSurfaceVariant,
+          size: iconSize,
+          onTap: () => _addToPlaylistSheet(context, library, song),
         ),
         SizedBox(width: spacing),
         // Cola: abre panel Y hace scroll a la canción actual
-        Tooltip(
-          message: 'Cola de reproducción',
-          child: _ActionBtn(
-            icon: Icons.queue_music_rounded,
-            label: 'COLA',
-            color: _showQueue ? AppTheme.primary : AppTheme.onSurfaceVariant,
-            size: iconSize,
-            onTap: () {
-              if (_showQueue) {
-                setState(() => _showQueue = false);
-              } else {
-                _openQueue(audio.currentIndex);
-              }
-            },
-          ),
+        _ActionBtn(
+          icon: Icons.queue_music_rounded,
+          label: 'COLA',
+          color: _showQueue ? AppTheme.primary : AppTheme.onSurfaceVariant,
+          size: iconSize,
+          onTap: () {
+            if (_showQueue) {
+              setState(() => _showQueue = false);
+            } else {
+              _openQueue(audio.currentIndex);
+            }
+          },
         ),
       ],
     );
