@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -26,7 +26,10 @@ class LibraryProvider extends ChangeNotifier {
   static const String _recentlyKey = 'recently_played_ids';
   static const String _playlistsKey = 'custom_playlists_v2';
   static const String _playCountsKey = 'play_counts';
+  static const String _playlistSortPrefix = 'playlist_sort_mode_';
   static const int _maxRecently = 50;
+
+  SharedPreferences? _prefs;
 
   List<SongModel> get songs => _searchQuery.isEmpty ? _songs : _filteredSongs;
   List<SongModel> get recentlyAdded => _recentlyAdded;
@@ -117,7 +120,8 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<void> _loadPersistedData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      _prefs = await SharedPreferences.getInstance();
+      final prefs = _prefs!;
 
       // Favoritos
       final favIds = prefs.getStringList(_favoritesKey) ?? [];
@@ -251,10 +255,21 @@ class LibraryProvider extends ChangeNotifier {
   void addSongToPlaylist(String playlistId, int songId) {
     final idx = _playlists.indexWhere((p) => p.id == playlistId);
     if (idx >= 0 && !_playlists[idx].songIds.contains(songId)) {
-      _playlists[idx].songIds.add(songId);
+      final updatedSongIds = List<int>.from(_playlists[idx].songIds)..insert(0, songId);
+      _playlists[idx] = _playlists[idx].copyWith(songIds: updatedSongIds);
       _savePlaylists();
       notifyListeners();
     }
+  }
+
+  String getPlaylistSortMode(String playlistId) {
+    return _prefs?.getString('$_playlistSortPrefix$playlistId') ?? 'custom';
+  }
+
+  Future<void> setPlaylistSortMode(String playlistId, String sortMode) async {
+    _prefs ??= await SharedPreferences.getInstance();
+    await _prefs?.setString('$_playlistSortPrefix$playlistId', sortMode);
+    notifyListeners();
   }
 
   void removeSongFromPlaylist(String playlistId, int songId) {
@@ -272,7 +287,7 @@ class LibraryProvider extends ChangeNotifier {
     if (idx >= 0) {
       _playlists[idx] = _playlists[idx].copyWith(songIds: newOrder);
       _savePlaylists();
-      // No notifyListeners: la UI ya actualizÃ³ el estado local
+      notifyListeners();
     }
   }
 
