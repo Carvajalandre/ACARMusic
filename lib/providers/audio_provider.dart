@@ -64,6 +64,8 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   AppRepeatState get repeatMode => _repeatMode;
   Duration get position => positionNotifier.value;
   Duration get duration => durationNotifier.value;
+  /// ID de sesión de audio de Android — necesario para abrir el ecualizador del sistema.
+  int? get androidAudioSessionId => _player.androidAudioSessionId;
 
   SongModel? get currentSong =>
       _currentIndex >= 0 && _currentIndex < _queue.length
@@ -160,9 +162,12 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       await logStep('2_update_state');
-      final queueChanged = !identical(_queue, newQueue) ||
-          _queue.length != newQueue.length;
-      _queue = newQueue;
+      // Copiar siempre — desvincula _queue de la lista de la UI (_sorted).
+      // Sin esto, cuando la UI reordena _sorted en A-Z, _queue muta en paralelo
+      // y desplaza el índice actual → artwork/botón cambian sin cambiar pista.
+      final queueChanged = _queue.length != newQueue.length ||
+          !_listsEqual(_queue, newQueue);
+      _queue = List.from(newQueue);
       _currentIndex = index;
       notifyListeners();
 
@@ -499,6 +504,15 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     final m = d.inMinutes.toString();
     final s = (d.inSeconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+
+  /// Compara dos listas por contenido (ids), no por referencia.
+  static bool _listsEqual(List<SongModel> a, List<SongModel> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) return false;
+    }
+    return true;
   }
 
   @override
