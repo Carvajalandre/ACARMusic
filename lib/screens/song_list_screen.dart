@@ -71,6 +71,7 @@ class _SongListScreenState extends State<SongListScreen> {
       _sortMode = _SortMode.values.firstWhere(
           (e) => e.name == modeStr,
           orElse: () => _SortMode.custom);
+      _applySort();
     }
   }
 
@@ -118,10 +119,29 @@ class _SongListScreenState extends State<SongListScreen> {
     }
   }
 
+  /// Sincroniza [_sorted] con los datos vivos del provider si cambiaron.
+  /// Se llama desde [build] (sin setState) y desde [_applySort] (con setState).
+  void _syncSorted() {
+    if (widget.playlistId == null) return;
+    final liveSongs = context.read<LibraryProvider>().getSongsForPlaylist(widget.playlistId!);
+    final liveIds = liveSongs.map((s) => s.id).toList();
+    final sortedIds = _sorted.map((s) => s.id).toList();
+    if (listEquals(liveIds, sortedIds)) return;
+    _sorted = List.from(liveSongs);
+    switch (_sortMode) {
+      case _SortMode.az:
+        _sorted.sort((a, b) => (a.title ?? '')
+            .toLowerCase()
+            .compareTo((b.title ?? '').toLowerCase()));
+        break;
+      case _SortMode.recentlyAdded:
+      case _SortMode.custom:
+        break;
+    }
+  }
+
   void _applySort() {
-    final liveSongs = widget.playlistId != null
-        ? context.read<LibraryProvider>().getSongsForPlaylist(widget.playlistId!)
-        : widget.songs;
+    _syncSorted();
     setState(() {
       switch (_sortMode) {
         case _SortMode.az:
@@ -130,10 +150,7 @@ class _SongListScreenState extends State<SongListScreen> {
               .compareTo((b.title ?? '').toLowerCase()));
           break;
         case _SortMode.recentlyAdded:
-          _sorted = List.from(liveSongs);
-          break;
         case _SortMode.custom:
-          _sorted = List.from(liveSongs);
           break;
       }
     });
@@ -155,28 +172,11 @@ class _SongListScreenState extends State<SongListScreen> {
   @override
   Widget build(BuildContext context) {
     final isPlaylist = widget.playlistId != null;
-    final library = isPlaylist ? context.watch<LibraryProvider>() : context.read<LibraryProvider>();
-    final liveSongs = isPlaylist
-        ? library.getSongsForPlaylist(widget.playlistId!)
-        : widget.songs;
+    // watch para reaccionar a cambios externos en la playlist
+    if (isPlaylist) context.watch<LibraryProvider>();
 
     // Sincronizar _sorted si cambian los elementos (adiciones/eliminaciones)
-    final liveIds = liveSongs.map((s) => s.id).toList();
-    final sortedIds = _sorted.map((s) => s.id).toList();
-    if (!listEquals(liveIds, sortedIds)) {
-      _sorted = List.from(liveSongs);
-      switch (_sortMode) {
-        case _SortMode.az:
-          _sorted.sort((a, b) => (a.title ?? '')
-              .toLowerCase()
-              .compareTo((b.title ?? '').toLowerCase()));
-          break;
-        case _SortMode.recentlyAdded:
-          break;
-        case _SortMode.custom:
-          break;
-      }
-    }
+    _syncSorted();
 
     if (isPlaylist && _sortMode == _SortMode.az) {
       _buildLetterIndex(_sorted);

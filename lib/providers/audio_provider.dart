@@ -130,12 +130,6 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     // Suprimir broadcasts al platform channel durante la transición.
     _handler.suppressBroadcast = true;
 
-    // Señal visual inmediata: la pista anterior se detiene.
-    // Evita que _isPlaying quede con el valor anterior (true) durante la carga
-    // lo que causaba que AnimatedSwitcher mostrara "pausa" incorrectamente.
-    _isPlaying = false;
-    notifyListeners();
-
     // Log diagnóstico: guarda paso a paso para identificar crashes nativos.
     String lastStep = 'inicio';
     try {
