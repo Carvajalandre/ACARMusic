@@ -9,6 +9,8 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../audio/audio_handler.dart';
+import '../models/animation_style.dart';
+import '../services/visualizer_service.dart';
 
 enum AppRepeatState { off, all, one }
 
@@ -54,6 +56,19 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// Evita llamadas concurrentes a playSong
   bool _changingTrack = false;
 
+  // ── Estilo de animación / visualizador ────────────────────────────────────
+  VisualizerStyle _animationStyle = VisualizerStyle.vinyl;
+  final VisualizerService visualizerService = VisualizerService();
+  static const String _visualizerKey = 'visualizer_style_v1';
+
+  VisualizerStyle get animationStyle => _animationStyle;
+
+  set animationStyle(VisualizerStyle value) {
+    _animationStyle = value;
+    _saveVisualizerStyle();
+    notifyListeners();
+  }
+
   static const String _sessionKey = 'audio_session_v1';
 
   int get sleepTimerMinutes => _sleepTimerMinutes;
@@ -73,7 +88,10 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
           : null;
 
   void _init() {
-    SharedPreferences.getInstance().then((prefs) => _prefs = prefs);
+    SharedPreferences.getInstance().then((prefs) {
+      _prefs = prefs;
+      _loadVisualizerStyle(prefs);
+    });
 
     _player.positionStream.listen((pos) {
       positionNotifier.value = pos;
@@ -212,22 +230,35 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
             'Stack: $st');
       } catch (_) {}
     } finally {
-      _handler.suppressBroadcast = false;
-      _changingTrack = false;
-      // Sincronizar estado real del player al liberar el guard.
-      // Previene race: playerStateStream puede emitir playing=false brevemente
-      // justo después de _changingTrack=false → AnimatedSwitcher flickea.
+      // Sincronizar estado MIENTRAS _changingTrack aún es true.
+      // Esto evita que playerStateStream emita playing=false durante la
+      // transición y cause flicker en los AnimatedSwitcher.
       final actualPlaying = _player.playing;
       if (_isPlaying != actualPlaying) {
         _isPlaying = actualPlaying;
         notifyListeners();
       }
+      _handler.suppressBroadcast = false;
+      _changingTrack = false;
+      _manageVisualizer();
     }
   }
 
   Future<void> togglePlayPause() async {
     _player.playing ? await _handler.pause() : await _handler.play();
     await _saveSession();
+    _manageVisualizer();
+  }
+
+  void _manageVisualizer() {
+    if (_animationStyle != VisualizerStyle.vinyl && _isPlaying) {
+      final sessionId = _player.androidAudioSessionId;
+      if (sessionId != null) {
+        visualizerService.start(sessionId);
+        return;
+      }
+    }
+    visualizerService.stop();
   }
 
   Future<void> seekTo(double progress) async {
@@ -509,6 +540,21 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     return true;
   }
 
+  // ── Visualizer Style Persistence ──────────────────────────────────────────
+  void _loadVisualizerStyle(SharedPreferences prefs) {
+    final saved = prefs.getString(_visualizerKey);
+    if (saved != null) {
+      _animationStyle = VisualizerStyle.values.firstWhere(
+        (e) => e.name == saved,
+        orElse: () => VisualizerStyle.vinyl,
+      );
+    }
+  }
+
+  void _saveVisualizerStyle() {
+    _prefs?.setString(_visualizerKey, _animationStyle.name);
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -518,6 +564,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     positionNotifier.dispose();
     durationNotifier.dispose();
     sleepRemainingNotifier.dispose();
+    visualizerService.dispose();
     super.dispose();
   }
 }

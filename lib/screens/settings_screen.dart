@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../models/animation_style.dart';
 import '../theme/app_theme.dart';
 import '../providers/audio_provider.dart';
 
@@ -27,6 +28,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SliverToBoxAdapter(child: _buildSection(
               label: 'Experiencia',
               children: [
+                _buildSettingTile(
+                  icon: Icons.animation_rounded,
+                  title: 'Animaciones',
+                  subtitle: audio.animationStyle.displayName,
+                  trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceVariant),
+                  onTap: () => _showVisualizerStyleSheet(context, audio),
+                ),
                 _buildSettingTile(
                   icon: Icons.graphic_eq_rounded,
                   title: 'Calidad y efectos de sonido',
@@ -284,6 +292,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       );
+
+  // ── Animaciones — selector de estilo de visualizador ─────────────────────
+  void _showVisualizerStyleSheet(BuildContext context, AudioProvider audio) {
+    final current = audio.animationStyle;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+                color: AppTheme.outline, borderRadius: BorderRadius.circular(2)),
+          ),
+          Text('Animaciones',
+              style: GoogleFonts.manrope(
+                  color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 16),
+          ...VisualizerStyle.values.map((style) {
+            final selected = style == current;
+            final isDefault = style == VisualizerStyle.vinyl;
+            return ListTile(
+              leading: Text(style.iconLabel, style: const TextStyle(fontSize: 24)),
+              title: Text(
+                '${style.displayName}${isDefault ? ' (Por defecto)' : ''}',
+                style: GoogleFonts.manrope(
+                  color: AppTheme.onSurface,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+              trailing: selected
+                  ? const Icon(Icons.check_rounded, color: AppTheme.primary)
+                  : null,
+              onTap: () {
+                audio.animationStyle = style;
+                Navigator.pop(ctx);
+              },
+            );
+          }),
+          const SizedBox(height: 12),
+          Text('Los cambios se aplican al instante en el reproductor.',
+              style: GoogleFonts.manrope(
+                  color: AppTheme.onSurfaceVariant, fontSize: 12)),
+        ]),
+      ),
+    );
+  }
 
   static const _eqChannel = MethodChannel('com.acar.music/equalizer');
 

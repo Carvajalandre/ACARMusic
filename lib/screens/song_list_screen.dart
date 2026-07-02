@@ -23,7 +23,7 @@ class ReorderableCustomDelayDragStartListener extends ReorderableDragStartListen
   @override
   MultiDragGestureRecognizer createRecognizer() {
     return DelayedMultiDragGestureRecognizer(
-      delay: const Duration(seconds: 3),
+      delay: const Duration(milliseconds: 400),
     );
   }
 }
@@ -55,15 +55,19 @@ class _SongListScreenState extends State<SongListScreen> {
   final Random _random = Random();
 
   final ScrollController _scrollController = ScrollController();
+  double _sidebarScrollOffset = 0;
   Map<String, int> _letterIndex = {};
   String? _activeLetter;
   bool _showLetterOverlay = false;
   final GlobalKey _sidebarKey = GlobalKey();
   static const double _tileHeight = 72.0;
+  static const double _kExpandedHeader = 200.0;
+  static const double _kHeaderInfoHeight = 40.0;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onSidebarScroll);
     _sorted = List.from(widget.songs);
     if (widget.playlistId != null) {
       final provider = context.read<LibraryProvider>();
@@ -77,8 +81,17 @@ class _SongListScreenState extends State<SongListScreen> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onSidebarScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onSidebarScroll() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    if ((offset - _sidebarScrollOffset).abs() > 0.5) {
+      setState(() => _sidebarScrollOffset = offset);
+    }
   }
 
   void _buildLetterIndex(List<SongModel> songs) {
@@ -94,7 +107,8 @@ class _SongListScreenState extends State<SongListScreen> {
   void _scrollToLetter(String letter) {
     final idx = _letterIndex[letter];
     if (idx == null) return;
-    final targetOffset = 240.0 + (idx * _tileHeight);
+    final collapsedOffset = _kExpandedHeader - kToolbarHeight;
+    final targetOffset = collapsedOffset + _kHeaderInfoHeight + (idx * _tileHeight);
     _scrollController.animateTo(
       targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
       duration: const Duration(milliseconds: 250),
@@ -361,7 +375,7 @@ class _SongListScreenState extends State<SongListScreen> {
       if (isPlaylist && _sortMode == _SortMode.az && _sorted.isNotEmpty)
         Positioned(
           right: 0,
-          top: 240, // below appbar and header
+          top: max(kToolbarHeight.toDouble(), _kExpandedHeader - _sidebarScrollOffset) + _kHeaderInfoHeight,
           bottom: 40,
           child: Listener(
             onPointerDown: (e) {
@@ -389,7 +403,7 @@ class _SongListScreenState extends State<SongListScreen> {
             },
             child: Container(
               key: _sidebarKey,
-              width: 28,
+              width: 36,
               color: Colors.transparent,
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(

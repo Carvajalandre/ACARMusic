@@ -6,10 +6,12 @@ import android.media.audiofx.AudioEffect
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.lang.ref.WeakReference
 
 class MainActivity : AudioServiceFragmentActivity() {
 
     private val CHANNEL = "com.acar.music/equalizer"
+    lateinit var visualizerPlugin: VisualizerPlugin
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -28,7 +30,6 @@ class MainActivity : AudioServiceFragmentActivity() {
                             startActivityForResult(intent, 0)
                             result.success(true)
                         } catch (e: ActivityNotFoundException) {
-                            // Dispositivo no tiene app de ecualizador del sistema
                             result.success(false)
                         } catch (e: Exception) {
                             result.error("EQ_ERROR", e.message, null)
@@ -37,5 +38,14 @@ class MainActivity : AudioServiceFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        visualizerPlugin = VisualizerPlugin(WeakReference(this), flutterEngine)
+    }
+
+    override fun onDestroy() {
+        if (::visualizerPlugin.isInitialized) {
+            visualizerPlugin.destroy()
+        }
+        super.onDestroy()
     }
 }

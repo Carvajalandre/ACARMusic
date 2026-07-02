@@ -6,7 +6,8 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
-import '../widgets/vinyl_record.dart';
+import '../models/animation_style.dart';
+import '../widgets/visualizer_factory.dart';
 import '../widgets/tap_scale.dart';
 
 class PlayerScreen extends StatelessWidget {
@@ -272,18 +273,25 @@ class _PlayerContentState extends State<_PlayerContent>
               child: _buildQueuePanel(audio, song),
             )
           : Center(
-              key: const ValueKey('vinyl'),
+              key: const ValueKey('visualizer'),
               child: Selector<AudioProvider, bool>(
                 selector: (_, a) => a.isPlaying,
                 builder: (_, isPlaying, __) =>
                     LayoutBuilder(builder: (_, c) {
                   final maxSize = (c.maxHeight * 0.92).clamp(
                       isCompact ? 120.0 : 200.0, 300.0);
-                  return VinylRecord(
-                    isPlaying: isPlaying,
-                    albumId: song.albumId,
-                    glowColor: _glowColor,
-                    size: maxSize,
+                  return Selector<AudioProvider, VisualizerStyle>(
+                    selector: (_, a) => a.animationStyle,
+                    builder: (_, style, __) => VisualizerFactory(
+                      style: style,
+                      isPlaying: isPlaying,
+                      albumId: song.albumId,
+                      glowColor: _glowColor,
+                      paletteDominant: _colorA,
+                      paletteMuted: _colorB,
+                      size: maxSize,
+                      fftStream: audio.visualizerService.fftStream,
+                    ),
                   );
                 }),
               ),
@@ -323,18 +331,26 @@ class _PlayerContentState extends State<_PlayerContent>
                   child: _showQueue
                       ? _buildQueuePanel(audio, song)
                       : Center(
-                          key: const ValueKey('vinyl'),
+                          key: const ValueKey('visualizer'),
                           child: Selector<AudioProvider, bool>(
                             selector: (_, a) => a.isPlaying,
-                            builder: (_, isPlaying, __) => VinylRecord(
-                              isPlaying: isPlaying,
-                              albumId: song.albumId,
-                              glowColor: _glowColor,
-                              size: vinylSize,
-                            ),
-                          ),
-                        ),
-                ),
+                            builder: (_, isPlaying, __) =>
+                                Selector<AudioProvider, VisualizerStyle>(
+                              selector: (_, a) => a.animationStyle,
+                              builder: (_, style, __) => VisualizerFactory(
+                                style: style,
+                                isPlaying: isPlaying,
+                                albumId: song.albumId,
+                                 glowColor: _glowColor,
+                                 paletteDominant: _colorA,
+                                 paletteMuted: _colorB,
+                                 size: vinylSize,
+                                 fftStream: audio.visualizerService.fftStream,
+                               ),
+                             ),
+                           ),
+                         ),
+                 ),
               ),
             ],
           ),
@@ -731,9 +747,17 @@ class _PlayerContentState extends State<_PlayerContent>
                   style: TextStyle(
                       color: AppTheme.onSurface,
                       fontWeight: FontWeight.w600)),
+              subtitle: Selector<AudioProvider, VisualizerStyle>(
+                selector: (_, a) => a.animationStyle,
+                builder: (_, style, __) => Text(
+                  style.displayName,
+                  style: const TextStyle(
+                      color: AppTheme.onSurfaceVariant, fontSize: 11),
+                ),
+              ),
               onTap: () {
                 Navigator.pop(ctx);
-                _showComingSoon(context, 'Animaciones');
+                _showAnimationStyleSheet(context);
               },
             ),
             // Ecualizador → abre app de sonido del sistema
@@ -853,6 +877,57 @@ class _PlayerContentState extends State<_PlayerContent>
                 color: AppTheme.onSurfaceVariant, fontSize: 13, height: 1.5),
           ),
           const SizedBox(height: 20),
+        ]),
+      ),
+    );
+  }
+
+  void _showAnimationStyleSheet(BuildContext context) {
+    final audio = context.read<AudioProvider>();
+    final current = audio.animationStyle;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+                color: AppTheme.outline, borderRadius: BorderRadius.circular(2)),
+          ),
+          const Text('Animaciones',
+              style: TextStyle(
+                  color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 16),
+          ...VisualizerStyle.values.map((style) {
+            final selected = style == current;
+            final isDefault = style == VisualizerStyle.vinyl;
+            return ListTile(
+              leading: Text(style.iconLabel, style: const TextStyle(fontSize: 24)),
+              title: Text(
+                '${style.displayName}${isDefault ? ' (Por defecto)' : ''}',
+                style: TextStyle(
+                  color: AppTheme.onSurface,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+              trailing: selected
+                  ? const Icon(Icons.check_rounded, color: AppTheme.primary)
+                  : null,
+              onTap: () {
+                audio.animationStyle = style;
+                Navigator.pop(ctx);
+              },
+            );
+          }),
+          const SizedBox(height: 12),
+          const Text('Los cambios se aplican al instante en el reproductor.',
+              style: TextStyle(
+                  color: AppTheme.onSurfaceVariant, fontSize: 12)),
         ]),
       ),
     );
