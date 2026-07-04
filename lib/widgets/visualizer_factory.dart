@@ -43,7 +43,7 @@ class VisualizerFactory extends StatelessWidget {
           width: size,
           height: size,
           child: BarVisualizer(
-            isPlaying: isPlaying,
+            fftStream: fftStream ?? _silentStream(),
             paletteVibrant: glowColor,
             paletteDominant: paletteDominant,
             paletteMuted: paletteMuted,

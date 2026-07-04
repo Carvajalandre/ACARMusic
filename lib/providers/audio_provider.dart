@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../audio/audio_handler.dart';
 import '../models/animation_style.dart';
@@ -67,6 +68,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     _animationStyle = value;
     _saveVisualizerStyle();
     notifyListeners();
+    _manageVisualizer(); // arranca/para stream al cambiar estilo en vivo
   }
 
   static const String _sessionKey = 'audio_session_v1';
@@ -230,16 +232,15 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
             'Stack: $st');
       } catch (_) {}
     } finally {
-      // Sincronizar estado MIENTRAS _changingTrack aún es true.
-      // Esto evita que playerStateStream emita playing=false durante la
-      // transición y cause flicker en los AnimatedSwitcher.
       final actualPlaying = _player.playing;
+      // Solo notifica si el valor realmente difiere del último emitido.
+      // Evita doble-toggle que causa flicker en AnimatedSwitcher.
       if (_isPlaying != actualPlaying) {
         _isPlaying = actualPlaying;
-        notifyListeners();
       }
       _handler.suppressBroadcast = false;
       _changingTrack = false;
+      notifyListeners(); // notify única al final, no en paso 8 también
       _manageVisualizer();
     }
   }
@@ -250,6 +251,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     _manageVisualizer();
   }
 
+  
   void _manageVisualizer() {
     if (_animationStyle != VisualizerStyle.vinyl && _isPlaying) {
       final sessionId = _player.androidAudioSessionId;

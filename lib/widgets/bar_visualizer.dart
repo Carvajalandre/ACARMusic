@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
 class BarVisualizer extends StatefulWidget {
-  final bool isPlaying;
+  final Stream<List<double>> fftStream;
   final Color paletteVibrant;
   final Color paletteDominant;
   final Color paletteMuted;
@@ -12,7 +12,7 @@ class BarVisualizer extends StatefulWidget {
 
   const BarVisualizer({
     super.key,
-    required this.isPlaying,
+    required this.fftStream,
     this.paletteVibrant = AppTheme.primary,
     this.paletteDominant = AppTheme.primary,
     this.paletteMuted = AppTheme.primary,
@@ -24,73 +24,50 @@ class BarVisualizer extends StatefulWidget {
 }
 
 class _BarVisualizerState extends State<BarVisualizer> {
-  late List<double> _heightsPct; // 0-100
-  Timer? _timer;
-  double _time = 0;
-  final Random _rng = Random();
-
-  static const List<Color> _palette = [
-    Color(0xFFC6C6C7),
-    Color(0xFFEC7C8A),
-    Color(0xFF9F9D9D),
-    Color(0xFFFAF9F9),
-    Color(0xFFB8B9B9),
-  ];
+  late List<double> _heightsPct;
+  StreamSubscription<List<double>>? _sub;
 
   @override
   void initState() {
     super.initState();
-    _heightsPct = List.filled(widget.barCount, 10.0);
-    _startTimer();
+    _heightsPct = List.filled(widget.barCount, 6.0);
+    _sub = widget.fftStream.listen(_onData);
   }
 
-  void _startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (!mounted) return;
-      if (!widget.isPlaying) {
-        setState(() => _heightsPct = List.filled(widget.barCount, 8.0));
-        return;
+  void _onData(List<double> data) {
+    if (!mounted || data.isEmpty) return;
+    final len = data.length;
+    setState(() {
+      for (int i = 0; i < widget.barCount; i++) {
+        final idx = (i * len / widget.barCount).floor().clamp(0, len - 1);
+        final raw = data[idx].clamp(0.0, 1.0);
+        _heightsPct[i] = (raw * 100).clamp(6.0, 100.0);
       }
-      _time += 0.5;
-      setState(() {
-        for (int i = 0; i < widget.barCount; i++) {
-          double target;
-          if (i < widget.barCount * 0.2) {
-            // bass
-            target = 40 + sin(_time * 0.8 + i) * 40 + _rng.nextDouble() * 20;
-          } else if (i > widget.barCount * 0.7) {
-            // highs
-            target = 15 + sin(_time * 1.5 + i) * 15 + _rng.nextDouble() * 50;
-          } else {
-            // mids
-            target = 25 + sin(_time * 1.2 + i) * 30 + _rng.nextDouble() * 30;
-          }
-          _heightsPct[i] = target.clamp(8.0, 100.0);
-        }
-      });
     });
   }
 
   @override
   void didUpdateWidget(covariant BarVisualizer old) {
     super.didUpdateWidget(old);
-    if (old.isPlaying != widget.isPlaying) {
-      // timer keeps running, checks flag each tick
+    if (old.fftStream != widget.fftStream) {
+      _sub?.cancel();
+      _sub = widget.fftStream.listen(_onData);
     }
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _sub?.cancel();
     super.dispose();
   }
 
-  Color _colorFor(int index, double heightPct) {
-    if (heightPct > 80) return const Color(0xFFFAF9F9);
-    if (heightPct > 50) return _palette[index % _palette.length];
-    final opacity = (0.4 + heightPct / 100).clamp(0.0, 1.0);
-    return _palette[index % _palette.length].withAlpha((opacity * 255).round());
+  Color _colorFor(double heightPct) {
+    if (heightPct > 82) return Colors.white;
+    if (heightPct > 40) {
+      return Color.lerp(widget.paletteVibrant, Colors.white,
+          ((heightPct - 40) / 60).clamp(0.0, 0.35))!;
+    }
+    return widget.paletteVibrant.withAlpha((100 + heightPct * 3).round().clamp(70, 255));
   }
 
   @override
@@ -109,13 +86,16 @@ class _BarVisualizerState extends State<BarVisualizer> {
           return Padding(
             padding: EdgeInsets.only(right: i == widget.barCount - 1 ? 0 : gap),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 100),
-              curve: Curves.easeInOut,
+              duration: const Duration(milliseconds: 90),
+              curve: Curves.easeOut,
               width: barWidth,
               height: max(h, 6.0),
               decoration: BoxDecoration(
-                color: _colorFor(i, _heightsPct[i]),
+                color: _colorFor(_heightsPct[i]),
                 borderRadius: BorderRadius.circular(barWidth / 2),
+                boxShadow: _heightsPct[i] > 75
+                    ? [BoxShadow(color: _colorFor(_heightsPct[i]).withAlpha(120), blurRadius: 8)]
+                    : null,
               ),
             ),
           );
