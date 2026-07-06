@@ -6,7 +6,7 @@ import 'bar_visualizer.dart';
 import 'radial_visualizer.dart';
 import 'modern_visualizer.dart';
 
-class VisualizerFactory extends StatelessWidget {
+class VisualizerFactory extends StatefulWidget {
   final VisualizerStyle style;
   final bool isPlaying;
   final int? albumId;
@@ -29,48 +29,54 @@ class VisualizerFactory extends StatelessWidget {
   });
 
   @override
+  State<VisualizerFactory> createState() => _VisualizerFactoryState();
+}
+
+class _VisualizerFactoryState extends State<VisualizerFactory> {
+  late final Stream<List<double>> _fallbackStream = Stream<List<double>>.periodic(
+    const Duration(seconds: 1),
+    (_) => List.filled(32, 0.0),
+  );
+
+  @override
   Widget build(BuildContext context) {
-    switch (style) {
+    switch (widget.style) {
       case VisualizerStyle.vinyl:
         return VinylRecord(
-          isPlaying: isPlaying,
-          albumId: albumId,
-          glowColor: glowColor,
-          size: size,
+          isPlaying: widget.isPlaying,
+          albumId: widget.albumId,
+          glowColor: widget.glowColor,
+          size: widget.size,
         );
       case VisualizerStyle.barVisualizer:
         return SizedBox(
-          width: size,
-          height: size,
+          width: widget.size,
+          height: widget.size,
           child: BarVisualizer(
-            fftStream: fftStream ?? _silentStream(),
-            paletteVibrant: glowColor,
-            paletteDominant: paletteDominant,
-            paletteMuted: paletteMuted,
+            fftStream: widget.fftStream ?? _fallbackStream,
+            paletteVibrant: widget.glowColor,
+            paletteDominant: widget.paletteDominant,
+            paletteMuted: widget.paletteMuted,
           ),
         );
       case VisualizerStyle.radialVisualizer:
         return SizedBox(
-          width: size,
-          height: size,
+          width: widget.size,
+          height: widget.size,
           child: RadialVisualizer(
-            fftStream: fftStream ?? _silentStream(),
-            glowColor: glowColor,
+            fftStream: widget.fftStream ?? _fallbackStream,
+            glowColor: widget.glowColor,
           ),
         );
       case VisualizerStyle.modern:
         return SizedBox(
-          width: size,
-          height: size,
+          width: widget.size,
+          height: widget.size,
           child: ModernVisualizer(
-            fftStream: fftStream ?? _silentStream(),
+            fftStream: widget.fftStream ?? _fallbackStream,
             lineColor: AppTheme.tertiary,
           ),
         );
     }
-  }
-
-  Stream<List<double>> _silentStream() async* {
-    yield List.filled(64, 0.0);
   }
 }

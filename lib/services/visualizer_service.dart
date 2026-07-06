@@ -11,61 +11,37 @@ class VisualizerService {
 
   StreamSubscription? _nativeSub;
   Timer? _simulatedTimer;
-  Timer? _watchdog;
   bool _started = false;
-  bool _nativeConfirmed = false;
 
   Stream<List<double>> get fftStream => _controller.stream;
 
   Future<bool> start(int audioSessionId) async {
     if (_started) return true;
     _started = true;
-    _nativeConfirmed = false;
 
+    bool nativeOk = false;
     try {
-      final ok = await _methodChannel.invokeMethod<bool>('startVisualizer', {
-        'audioSessionId': audioSessionId,
-      });
-      if (ok != true) {
-        _startSimulated();
-        return true;
-      }
-    } on MissingPluginException {
-      _startSimulated();
-      return true;
+      nativeOk = await _methodChannel.invokeMethod<bool>('startVisualizer', {
+            'audioSessionId': audioSessionId,
+          }) ??
+          false;
     } catch (_) {
-      _startSimulated();
-      return true;
+      nativeOk = false;
     }
 
-    // Nativo dijo OK. Escucha datos reales.
-    _nativeSub = _eventChannel.receiveBroadcastStream().listen(
-      (data) {
-        _nativeConfirmed = true;
-        _watchdog?.cancel();
-        _controller.add((data as List<dynamic>).cast<double>());
-      },
-      onError: (_) => _fallbackIfNoData(),
-    );
-
-    // Watchdog: si nativo no manda datos en 1200ms, cae a simulado.
-    _watchdog = Timer(const Duration(milliseconds: 1200), _fallbackIfNoData);
-
+    if (nativeOk) {
+      _nativeSub = _eventChannel.receiveBroadcastStream().listen(
+        (data) => _controller.add((data as List<dynamic>).cast<double>()),
+        onError: (_) => _startSimulated(),
+      );
+    } else {
+      _startSimulated();
+    }
     return true;
-  }
-
-  void _fallbackIfNoData() {
-    if (_nativeConfirmed) return;
-    _nativeSub?.cancel();
-    _nativeSub = null;
-    _startSimulated();
   }
 
   Future<void> stop() async {
     _started = false;
-    _nativeConfirmed = false;
-    _watchdog?.cancel();
-    _watchdog = null;
     _nativeSub?.cancel();
     _nativeSub = null;
     _simulatedTimer?.cancel();
@@ -84,8 +60,8 @@ class VisualizerService {
     _simulatedTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
       if (!_started) return;
       time += dt;
-      final data = List<double>.generate(64, (i) {
-        final freqRatio = i / 64;
+      final data = List<double>.generate(32, (i) {
+        final freqRatio = i / 32;
         double value;
         if (freqRatio < 0.2) {
           value = (0.4 + sin(time * 0.8) * 0.25 + sin(time * 1.3) * 0.1 +

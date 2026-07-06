@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 
 class BarVisualizer extends StatefulWidget {
   final Stream<List<double>> fftStream;
+  final Stream<String>? statusStream;
   final Color paletteVibrant;
   final Color paletteDominant;
   final Color paletteMuted;
@@ -13,10 +14,11 @@ class BarVisualizer extends StatefulWidget {
   const BarVisualizer({
     super.key,
     required this.fftStream,
+    this.statusStream,
     this.paletteVibrant = AppTheme.primary,
     this.paletteDominant = AppTheme.primary,
     this.paletteMuted = AppTheme.primary,
-    this.barCount = 40,
+    this.barCount = 20,
   });
 
   @override
@@ -30,7 +32,7 @@ class _BarVisualizerState extends State<BarVisualizer> {
   @override
   void initState() {
     super.initState();
-    _heightsPct = List.filled(widget.barCount, 6.0);
+    _heightsPct = List.filled(widget.barCount, 4.0);
     _sub = widget.fftStream.listen(_onData);
   }
 
@@ -41,7 +43,7 @@ class _BarVisualizerState extends State<BarVisualizer> {
       for (int i = 0; i < widget.barCount; i++) {
         final idx = (i * len / widget.barCount).floor().clamp(0, len - 1);
         final raw = data[idx].clamp(0.0, 1.0);
-        _heightsPct[i] = (raw * 100).clamp(6.0, 100.0);
+        _heightsPct[i] = (raw * 100).clamp(4.0, 100.0);
       }
     });
   }
@@ -73,7 +75,7 @@ class _BarVisualizerState extends State<BarVisualizer> {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      const gap = 3.0;
+      const gap = 6.0;
       final barWidth =
           (constraints.maxWidth - gap * (widget.barCount - 1)) / widget.barCount;
       final maxH = constraints.maxHeight;
@@ -89,7 +91,7 @@ class _BarVisualizerState extends State<BarVisualizer> {
               duration: const Duration(milliseconds: 90),
               curve: Curves.easeOut,
               width: barWidth,
-              height: max(h, 6.0),
+              height: max(h, 4.0),
               decoration: BoxDecoration(
                 color: _colorFor(_heightsPct[i]),
                 borderRadius: BorderRadius.circular(barWidth / 2),

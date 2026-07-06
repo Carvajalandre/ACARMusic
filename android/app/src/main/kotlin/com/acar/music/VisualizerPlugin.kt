@@ -7,7 +7,6 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.lang.ref.WeakReference
 import kotlin.math.sqrt
-import kotlin.math.log10
 
 class VisualizerPlugin(
     private val activity: WeakReference<MainActivity>,
@@ -18,11 +17,11 @@ class VisualizerPlugin(
     private var listener: Visualizer.OnDataCaptureListener? = null
     private val CHANNEL = "com.acar.music/visualizer"
     private val FFT_CHANNEL = "com.acar.music/visualizer_fft"
+    private val fftBuffer = FloatArray(32)
+    private var runningMax = 1.0
 
     private val methodChannel: MethodChannel
     private val eventChannel: EventChannel
-
-    private val fftBuffer = FloatArray(64)
 
     init {
         methodChannel = MethodChannel(
@@ -30,7 +29,6 @@ class VisualizerPlugin(
         ).apply {
             setMethodCallHandler { call, result -> handleMethodCall(call, result) }
         }
-
         eventChannel = EventChannel(
             flutterEngine.dartExecutor.binaryMessenger, FFT_CHANNEL
         ).apply {
@@ -49,8 +47,8 @@ class VisualizerPlugin(
         when (call.method) {
             "startVisualizer" -> {
                 val sessionId = call.argument<Int>("audioSessionId") ?: 0
-                startVisualizer(sessionId)
-                result.success(true)
+                val ok = startVisualizer(sessionId)
+                result.success(ok) // false = Dart usa simulado
             }
             "stopVisualizer" -> {
                 stopVisualizer()
@@ -60,42 +58,36 @@ class VisualizerPlugin(
         }
     }
 
-    private fun startVisualizer(sessionId: Int) {
+    // Un solo intento. Sin retry — Samsung DSP bloquea permanente, no transitorio.
+    private fun startVisualizer(sessionId: Int): Boolean {
         stopVisualizer()
-        try {
+        return try {
             val viz = Visualizer(sessionId)
             viz.enabled = false
-            viz.setCaptureSize(256)
+            viz.setCaptureSize(128)
 
             listener = object : Visualizer.OnDataCaptureListener {
-                override fun onWaveFormDataCapture(
-                    visualizer: Visualizer?, waveform: ByteArray?, samplingRate: Int
-                ) {}
-
-                override fun onFftDataCapture(
-                    visualizer: Visualizer?, fft: ByteArray?, samplingRate: Int
-                ) {
+                override fun onWaveFormDataCapture(v: Visualizer?, w: ByteArray?, s: Int) {}
+                override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, s: Int) {
                     processFft(fft)
                 }
             }
 
-            val captureRate = Visualizer.getMaxCaptureRate()
+            val captureRate = Visualizer.getMaxCaptureRate().coerceAtMost(20000)
             viz.setDataCaptureListener(listener, captureRate, false, true)
             viz.enabled = true
             visualizer = viz
+            true
         } catch (e: Exception) {
-            // sin visualizer nativo — Dart cae a simulado
+            false
         }
     }
-
-    private var runningMax = 1.0
 
     private fun processFft(fft: ByteArray?) {
         if (fft == null || eventSink == null) return
         val n = minOf(fft.size / 2, fftBuffer.size)
         val mags = DoubleArray(n)
         var frameMax = 0.0
-
         for (i in 0 until n) {
             val real = fft[i * 2].toDouble()
             val imag = fft[i * 2 + 1].toDouble()
@@ -103,17 +95,17 @@ class VisualizerPlugin(
             mags[i] = magnitude
             if (magnitude > frameMax) frameMax = magnitude
         }
-
-        runningMax = if (frameMax > runningMax) frameMax else runningMax * 0.95
-        val gainRef = runningMax.coerceAtLeast(2.0) // floor bajo, no ahoga señal débil
-
+        if (frameMax < 3.0) {
+            for (i in 0 until n) fftBuffer[i] = 0f
+            eventSink?.success(fftBuffer.toList().subList(0, n))
+            return
+        }
+        runningMax = if (frameMax > runningMax) frameMax else runningMax * 0.9
+        val gainRef = runningMax.coerceAtLeast(6.0)
         for (i in 0 until n) {
             fftBuffer[i] = (mags[i] / gainRef).toFloat().coerceIn(0f, 1f)
         }
-
-        val data = FloatArray(n)
-        System.arraycopy(fftBuffer, 0, data, 0, n)
-        eventSink?.success(data.toList())
+        eventSink?.success(fftBuffer.toList().subList(0, n))
     }
 
     private fun stopVisualizer() {
