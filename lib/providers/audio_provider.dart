@@ -544,8 +544,9 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   // ── Visualizer Style Persistence ──────────────────────────────────────────
   void _loadVisualizerStyle(SharedPreferences prefs) {
-    final saved = prefs.getString(_visualizerKey);
+    var saved = prefs.getString(_visualizerKey);
     if (saved != null) {
+      if (saved == 'modern') saved = 'minimalist';
       _animationStyle = VisualizerStyle.values.firstWhere(
         (e) => e.name == saved,
         orElse: () => VisualizerStyle.vinyl,

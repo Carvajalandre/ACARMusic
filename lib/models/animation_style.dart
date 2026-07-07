@@ -2,7 +2,7 @@ enum VisualizerStyle {
   vinyl,
   barVisualizer,
   radialVisualizer,
-  modern;
+  minimalist;
 
   String get displayName {
     switch (this) {
@@ -12,8 +12,8 @@ enum VisualizerStyle {
         return 'Bar Visualizer';
       case VisualizerStyle.radialVisualizer:
         return 'Radial Visualizer';
-      case VisualizerStyle.modern:
-        return 'Moderno minimalista';
+      case VisualizerStyle.minimalist:
+        return 'Minimalista';
     }
   }
 
@@ -25,7 +25,7 @@ enum VisualizerStyle {
         return '📊';
       case VisualizerStyle.radialVisualizer:
         return '🔵';
-      case VisualizerStyle.modern:
+      case VisualizerStyle.minimalist:
         return '◻️';
     }
   }

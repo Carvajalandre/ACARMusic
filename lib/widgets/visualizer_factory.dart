@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/animation_style.dart';
-import '../theme/app_theme.dart';
 import 'vinyl_record.dart';
 import 'bar_visualizer.dart';
 import 'radial_visualizer.dart';
-import 'modern_visualizer.dart';
+import 'minimalist_visualizer.dart';
 
 class VisualizerFactory extends StatefulWidget {
   final VisualizerStyle style;
@@ -68,14 +67,11 @@ class _VisualizerFactoryState extends State<VisualizerFactory> {
             glowColor: widget.glowColor,
           ),
         );
-      case VisualizerStyle.modern:
-        return SizedBox(
-          width: widget.size,
-          height: widget.size,
-          child: ModernVisualizer(
-            fftStream: widget.fftStream ?? _fallbackStream,
-            lineColor: AppTheme.tertiary,
-          ),
+      case VisualizerStyle.minimalist:
+        return MinimalistVisualizer(
+          albumId: widget.albumId,
+          size: widget.size,
+          glowColor: widget.glowColor,
         );
     }
   }
