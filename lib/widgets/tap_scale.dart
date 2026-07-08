@@ -48,9 +48,6 @@ class _TapScaleState extends State<TapScale> {
 
   void _onTapUp(TapUpDetails _) {
     setState(() => _pressed = false);
-    // No disparar acción si fue long press
-    if (!_isLongPress) widget.onTap();
-    _isLongPress = false;
   }
 
   void _onTapCancel() {
@@ -82,6 +79,10 @@ class _TapScaleState extends State<TapScale> {
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,
+      onTap: () {
+        if (!_isLongPress) widget.onTap();
+        _isLongPress = false;
+      },
       // onLongPress solo si hay tooltip configurado
       onLongPress: widget.tooltip != null ? _onLongPress : null,
       behavior: HitTestBehavior.opaque,

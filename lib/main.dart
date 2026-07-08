@@ -79,7 +79,7 @@ Future<void> main() async {
           androidNotificationChannelDescription: 'Reproducción de música',
           androidNotificationIcon: 'drawable/ic_notification',
           androidStopForegroundOnPause: false,
-          androidNotificationOngoing: true,
+          androidNotificationOngoing: false,
         ),
       );
       _audioServiceOk = true;

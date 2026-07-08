@@ -15,48 +15,42 @@ class MinimalistVisualizer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final artWidth = size * 0.85; //ancho
-    final artHeight = size * 0.90; //alto
+    final outerPadding = (size * 0.035).clamp(8.0, 14.0);
+    final artSize = size - outerPadding * 2;
+    final radius = (artSize * 0.075).clamp(14.0, 28.0);
     return SizedBox(
       width: size,
       height: size,
-      child: Center(
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: artWidth,
-              height: artHeight,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(artHeight * 0.15),
-                boxShadow: [
-                  BoxShadow(
-                    color: glowColor.withAlpha(50),
-                    blurRadius: 40,
-                    spreadRadius: 8,
-                  ),
-                ],
+      child: Padding(
+        padding: EdgeInsets.all(outerPadding),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            boxShadow: [
+              BoxShadow(
+                color: glowColor.withAlpha(55),
+                blurRadius: 34,
+                spreadRadius: 5,
               ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: ColoredBox(
+              color: const Color(0xFF111111),
+              child: albumId != null
+                  ? QueryArtworkWidget(
+                      id: albumId!,
+                      type: ArtworkType.ALBUM,
+                      artworkFit: BoxFit.contain,
+                      artworkWidth: artSize * 2,
+                      artworkHeight: artSize * 2,
+                      keepOldArtwork: true,
+                      nullArtworkWidget: _defaultArt(artSize),
+                    )
+                  : _defaultArt(artSize),
             ),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(artHeight * 0.15),
-              child: SizedBox(
-                width: artWidth,
-                height: artHeight,
-                child: albumId != null
-                    ? QueryArtworkWidget(
-                        id: albumId!,
-                        type: ArtworkType.ALBUM,
-                        artworkFit: BoxFit.cover,
-                        artworkWidth: 600,
-                        artworkHeight: 600,
-                        keepOldArtwork: true,
-                        nullArtworkWidget: _defaultArt(artHeight),
-                      )
-                    : _defaultArt(artHeight),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

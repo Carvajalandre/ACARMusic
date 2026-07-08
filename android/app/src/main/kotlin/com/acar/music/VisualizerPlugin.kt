@@ -17,7 +17,7 @@ class VisualizerPlugin(
     private var listener: Visualizer.OnDataCaptureListener? = null
     private val CHANNEL = "com.acar.music/visualizer"
     private val FFT_CHANNEL = "com.acar.music/visualizer_fft"
-    private val fftBuffer = FloatArray(32)
+    private val fftBuffer = FloatArray(96)
     private var runningMax = 1.0
 
     private val methodChannel: MethodChannel
@@ -64,7 +64,8 @@ class VisualizerPlugin(
         return try {
             val viz = Visualizer(sessionId)
             viz.enabled = false
-            viz.setCaptureSize(128)
+            val captureSize = Visualizer.getCaptureSizeRange()[1].coerceAtMost(512)
+            viz.setCaptureSize(captureSize)
 
             listener = object : Visualizer.OnDataCaptureListener {
                 override fun onWaveFormDataCapture(v: Visualizer?, w: ByteArray?, s: Int) {}
@@ -73,7 +74,7 @@ class VisualizerPlugin(
                 }
             }
 
-            val captureRate = Visualizer.getMaxCaptureRate().coerceAtMost(20000)
+            val captureRate = Visualizer.getMaxCaptureRate().coerceAtMost(30000)
             viz.setDataCaptureListener(listener, captureRate, false, true)
             viz.enabled = true
             visualizer = viz
@@ -85,25 +86,36 @@ class VisualizerPlugin(
 
     private fun processFft(fft: ByteArray?) {
         if (fft == null || eventSink == null) return
-        val n = minOf(fft.size / 2, fftBuffer.size)
-        val mags = DoubleArray(n)
+        val sourceBins = fft.size / 2
+        val n = minOf(sourceBins, fftBuffer.size)
+        val mags = DoubleArray(sourceBins)
         var frameMax = 0.0
-        for (i in 0 until n) {
+        for (i in 0 until sourceBins) {
             val real = fft[i * 2].toDouble()
             val imag = fft[i * 2 + 1].toDouble()
             val magnitude = sqrt(real * real + imag * imag)
             mags[i] = magnitude
             if (magnitude > frameMax) frameMax = magnitude
         }
-        if (frameMax < 3.0) {
+        if (frameMax < 1.6) {
             for (i in 0 until n) fftBuffer[i] = 0f
             eventSink?.success(fftBuffer.toList().subList(0, n))
             return
         }
-        runningMax = if (frameMax > runningMax) frameMax else runningMax * 0.9
-        val gainRef = runningMax.coerceAtLeast(6.0)
+        runningMax = if (frameMax > runningMax) frameMax else runningMax * 0.94
+        val gainRef = runningMax.coerceAtLeast(4.0)
         for (i in 0 until n) {
-            fftBuffer[i] = (mags[i] / gainRef).toFloat().coerceIn(0f, 1f)
+            val start = ((i.toDouble() / n) * sourceBins).toInt().coerceIn(0, sourceBins - 1)
+            val end = ((((i + 1).toDouble() / n) * sourceBins).toInt() + 1).coerceIn(start + 1, sourceBins)
+            var peak = 0.0
+            var sum = 0.0
+            for (j in start until end) {
+                peak = maxOf(peak, mags[j])
+                sum += mags[j]
+            }
+            val avg = sum / (end - start)
+            val normalized = ((peak * 0.7 + avg * 0.3) / gainRef)
+            fftBuffer[i] = normalized.toFloat().coerceIn(0f, 1f)
         }
         eventSink?.success(fftBuffer.toList().subList(0, n))
     }

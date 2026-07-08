@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/material.dart';
+
 import '../theme/app_theme.dart';
 
 class RadialVisualizer extends StatefulWidget {
@@ -19,160 +21,192 @@ class RadialVisualizer extends StatefulWidget {
 
 class _RadialVisualizerState extends State<RadialVisualizer>
     with SingleTickerProviderStateMixin {
-  final List<double> _levels = List.filled(64, 0.0);
-  final List<double> _targetLevels = List.filled(64, 0.0);
-  StreamSubscription<List<double>>? _subscription;
-  late AnimationController _animationCtrl;
-  final Random _random = Random();
+  static const int _barCount = 96;
 
-  static const int _barCount = 64;
+  final List<double> _levels = List.filled(_barCount, 0.0);
+  final List<double> _targets = List.filled(_barCount, 0.0);
+  StreamSubscription<List<double>>? _subscription;
+  late final AnimationController _ticker;
 
   @override
   void initState() {
     super.initState();
-    _animationCtrl = AnimationController(
+    _ticker = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 16),
-    )..repeat();
-
-    _subscription = widget.fftStream.listen((data) {
-      if (!mounted) return;
-      _processFFTData(data);
-    });
+    )
+      ..addListener(_tick)
+      ..repeat();
+    _subscription = widget.fftStream.listen(_processFftData);
   }
 
-  void _processFFTData(List<double> data) {
-    final int dataLen = data.length;
-    if (dataLen == 0) return;
+  @override
+  void didUpdateWidget(covariant RadialVisualizer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.fftStream != widget.fftStream) {
+      _subscription?.cancel();
+      _subscription = widget.fftStream.listen(_processFftData);
+    }
+  }
 
-    setState(() {
-      for (int i = 0; i < _barCount; i++) {
-        final double freqRatio = i / _barCount;
-        int dataIndex;
+  void _processFftData(List<double> data) {
+    if (data.isEmpty) return;
+    final mapped = _mapBands(data, _barCount);
+    for (var i = 0; i < _barCount; i++) {
+      _targets[i] = mapped[i];
+    }
+  }
 
-        if (freqRatio < 0.2) {
-          dataIndex = (freqRatio * 5 * dataLen).floor().clamp(0, dataLen - 1);
-        } else if (freqRatio < 0.7) {
-          dataIndex = ((freqRatio - 0.2) / 0.5 * 0.6 * dataLen + 0.2 * dataLen).floor().clamp(0, dataLen - 1);
-        } else {
-          dataIndex = ((freqRatio - 0.7) / 0.3 * 0.2 * dataLen + 0.8 * dataLen).floor().clamp(0, dataLen - 1);
-        }
-
-        final double rawValue = data[dataIndex].clamp(0.0, 1.0);
-        double targetLevel;
-
-        if (freqRatio < 0.2) {
-          targetLevel = 0.15 + sin(_animationCtrl.value * 2 * pi * 0.8) * 0.12 + _random.nextDouble() * 0.15;
-          targetLevel = (targetLevel * 0.6 + rawValue * 0.4).clamp(0.05, 1.0);
-        } else if (freqRatio > 0.7) {
-          targetLevel = 0.05 + sin(_animationCtrl.value * 2 * pi * 1.5) * 0.05 + _random.nextDouble() * 0.35;
-          targetLevel = (targetLevel * 0.4 + rawValue * 0.6).clamp(0.05, 1.0);
-        } else {
-          targetLevel = 0.1 + sin(_animationCtrl.value * 2 * pi * 1.2) * 0.1 + _random.nextDouble() * 0.25;
-          targetLevel = (targetLevel * 0.5 + rawValue * 0.5).clamp(0.05, 1.0);
-        }
-
-        _targetLevels[i] = targetLevel;
+  List<double> _mapBands(List<double> data, int count) {
+    final output = List<double>.filled(count, 0.0);
+    final last = data.length - 1;
+    for (var i = 0; i < count; i++) {
+      final startRatio = i / count;
+      final endRatio = (i + 1) / count;
+      final start = (pow(startRatio, 1.35) * last).floor().clamp(0, last);
+      final end = max(start + 1, (pow(endRatio, 1.35) * last).ceil())
+          .clamp(1, data.length);
+      var peak = 0.0;
+      var sum = 0.0;
+      for (var j = start; j < end; j++) {
+        final value = data[j].clamp(0.0, 1.0);
+        peak = max(peak, value);
+        sum += value;
       }
-    });
+      final avg = sum / (end - start);
+      final emphasis = i < count * 0.18
+          ? 1.08
+          : i > count * 0.72
+              ? 0.92
+              : 1.0;
+      output[i] = ((peak * 0.65 + avg * 0.35) * emphasis).clamp(0.0, 1.0);
+    }
+    return output;
+  }
+
+  void _tick() {
+    if (!mounted) return;
+    var energy = 0.0;
+    for (final target in _targets) {
+      energy += target;
+    }
+    energy /= _targets.length;
+
+    var changed = false;
+    for (var i = 0; i < _barCount; i++) {
+      final target = _targets[i];
+      final speed = target > _levels[i] ? 0.34 : (energy < 0.02 ? 0.24 : 0.14);
+      final next = (_levels[i] + (target - _levels[i]) * speed).clamp(0.0, 1.0);
+      if ((next - _levels[i]).abs() > 0.001) changed = true;
+      _levels[i] = energy < 0.01 ? next * 0.58 : next;
+    }
+    if (changed) setState(() {});
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
-    _animationCtrl.dispose();
+    _ticker.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animationCtrl,
-      builder: (context, child) {
-        for (int i = 0; i < _barCount; i++) {
-          final diff = _targetLevels[i] - _levels[i];
-          _levels[i] += diff * 0.15;
-        }
-
-        return CustomPaint(
-          size: Size.infinite,
-          painter: _RadialPainter(
-            levels: _levels,
-            glowColor: widget.glowColor,
-            animationValue: _animationCtrl.value,
-          ),
-        );
-      },
+    return CustomPaint(
+      size: Size.infinite,
+      painter: _RadialPainter(levels: _levels),
     );
   }
 }
 
 class _RadialPainter extends CustomPainter {
   final List<double> levels;
-  final Color glowColor;
-  final double animationValue;
 
-  static const int _barCount = 64;
-  static const double _centerRadius = 50.0;
-  static const double _maxBarLength = 40.0;
+  const _RadialPainter({required this.levels});
 
-  _RadialPainter({
-    required this.levels,
-    required this.glowColor,
-    required this.animationValue,
-  });
+  static const List<Color> _spectrum = [
+    Color(0xFFFF2BD6),
+    Color(0xFFFF2B6A),
+    Color(0xFFFFB000),
+    Color(0xFFA8FF2A),
+    Color(0xFF24F85A),
+    Color(0xFF12F2D0),
+    Color(0xFF2388FF),
+    Color(0xFFFF2BD6),
+  ];
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (levels.isEmpty || size.isEmpty) return;
+
+    final shortest = min(size.width, size.height);
     final center = Offset(size.width / 2, size.height / 2);
+    final innerRadius = shortest * 0.22;
+    final maxBarLength = shortest * 0.27;
+    final barCount = levels.length;
+    final strokeWidth = (shortest / 105).clamp(2.0, 4.5);
 
-    for (int i = 0; i < _barCount; i++) {
-      final angle = (i / _barCount) * 2 * pi - pi / 2;
+    for (var i = 0; i < barCount; i++) {
+      final angle = (i / barCount) * 2 * pi - pi / 2;
       final level = levels[i].clamp(0.0, 1.0);
+      final color = _colorAt(i / barCount);
+      final length = maxBarLength * (0.06 + level * 0.94);
+      final start = Offset(
+        center.dx + cos(angle) * innerRadius,
+        center.dy + sin(angle) * innerRadius,
+      );
+      final end = Offset(
+        center.dx + cos(angle) * (innerRadius + length),
+        center.dy + sin(angle) * (innerRadius + length),
+      );
+      final opacity = (0.32 + level * 0.68).clamp(0.0, 1.0);
 
-      final isCyanZone = angle > -pi * 0.8 && angle < pi * 0.8;
-      final barColor = isCyanZone ? const Color(0xFF00F2FF) : const Color(0xFFFF00FF);
-      final glowColor = isCyanZone ? const Color(0xFF00F2FF) : const Color(0xFFFF00FF);
-
-      final barLength = _centerRadius + level * _maxBarLength;
-      final innerRadius = _centerRadius - 2;
-
-      final x1 = center.dx + cos(angle) * innerRadius;
-      final y1 = center.dy + sin(angle) * innerRadius;
-      final x2 = center.dx + cos(angle) * barLength;
-      final y2 = center.dy + sin(angle) * barLength;
-
-      final paint = Paint()
-        ..color = barColor
-        ..strokeWidth = 3.0
-        ..strokeCap = StrokeCap.round
-        ..style = PaintingStyle.stroke;
-
-      final glowPaint = Paint()
-        ..color = glowColor
-        ..strokeWidth = 5.0
-        ..strokeCap = StrokeCap.round
-        ..style = PaintingStyle.stroke
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
-
-      final opacity = 0.4 + level * 0.6;
-      paint.color = paint.color.withAlpha((255 * opacity).round());
-      glowPaint.color = glowPaint.color.withAlpha((180 * opacity).round());
-
-      if (level > 0.3) {
-        canvas.drawLine(Offset(x1, y1), Offset(x2, y2), glowPaint);
+      if (level > 0.12) {
+        canvas.drawLine(
+          start,
+          end,
+          Paint()
+            ..color = color.withAlpha((85 * opacity).round())
+            ..strokeWidth = strokeWidth * 4.2
+            ..strokeCap = StrokeCap.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+        );
       }
-      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), paint);
 
-      if (level > 0.7) {
-        final dotPaint = Paint()
-          ..color = barColor.withAlpha((200 * opacity).round())
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(Offset(x2, y2), 2.5, dotPaint);
+      canvas.drawLine(
+        start,
+        end,
+        Paint()
+          ..shader = LinearGradient(
+            colors: [
+              color.withAlpha((80 * opacity).round()),
+              color.withAlpha((255 * opacity).round()),
+            ],
+          ).createShader(Rect.fromPoints(start, end))
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round,
+      );
+
+      if (level > 0.72) {
+        canvas.drawCircle(
+          end,
+          strokeWidth * 0.78,
+          Paint()..color = color.withAlpha((220 * opacity).round()),
+        );
       }
     }
   }
 
+  Color _colorAt(double t) {
+    final scaled = t * (_spectrum.length - 1);
+    final index = scaled.floor().clamp(0, _spectrum.length - 2);
+    return Color.lerp(
+      _spectrum[index],
+      _spectrum[index + 1],
+      scaled - index,
+    )!;
+  }
+
   @override
-  bool shouldRepaint(_RadialPainter old) => true;
+  bool shouldRepaint(covariant _RadialPainter oldDelegate) => true;
 }

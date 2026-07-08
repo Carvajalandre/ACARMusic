@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../audio/audio_handler.dart';
 import '../models/animation_style.dart';
@@ -21,6 +21,8 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _handler.onSkipToNext = skipNext;
     _handler.onSkipToPrevious = skipPrevious;
+    _handler.onToggleShuffle = () async => toggleShuffle();
+    _handler.onToggleRepeat = () async => toggleRepeat();
   }
 
   final ACARMusicHandler _handler;
@@ -56,6 +58,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Evita llamadas concurrentes a playSong
   bool _changingTrack = false;
+  bool _toggleInFlight = false;
 
   // ── Estilo de animación / visualizador ────────────────────────────────────
   VisualizerStyle _animationStyle = VisualizerStyle.vinyl;
@@ -81,6 +84,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   AppRepeatState get repeatMode => _repeatMode;
   Duration get position => positionNotifier.value;
   Duration get duration => durationNotifier.value;
+
   /// ID de sesión de audio de Android — necesario para abrir el ecualizador del sistema.
   int? get androidAudioSessionId => _player.androidAudioSessionId;
 
@@ -158,15 +162,16 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
 
       Future<void> logStep(String step) async {
         lastStep = step;
-        await prefs.setString('last_crash_log',
+        await prefs.setString(
+            'last_crash_log',
             'playSong crash diagnostic\n'
-            'Paso: $step\n'
-            'Song: ${song.title}\n'
-            'Path: ${song.data}\n'
-            'Index: $index\n'
-            'QueueLen: ${newQueue.length}\n'
-            'PlayerState: ${_player.processingState}\n'
-            'Playing: ${_player.playing}');
+                'Paso: $step\n'
+                'Song: ${song.title}\n'
+                'Path: ${song.data}\n'
+                'Index: $index\n'
+                'QueueLen: ${newQueue.length}\n'
+                'PlayerState: ${_player.processingState}\n'
+                'Playing: ${_player.playing}');
       }
 
       await logStep('1_shuffle_history');
@@ -179,8 +184,8 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
       // Copiar siempre — desvincula _queue de la lista de la UI (_sorted).
       // Sin esto, cuando la UI reordena _sorted en A-Z, _queue muta en paralelo
       // y desplaza el índice actual → artwork/botón cambian sin cambiar pista.
-      final queueChanged = _queue.length != newQueue.length ||
-          !_listsEqual(_queue, newQueue);
+      final queueChanged =
+          _queue.length != newQueue.length || !_listsEqual(_queue, newQueue);
       _queue = List.from(newQueue);
       _currentIndex = index;
       notifyListeners();
@@ -225,11 +230,12 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('Error reproduciendo (paso: $lastStep): $e');
       try {
         final prefs = _prefs ?? await SharedPreferences.getInstance();
-        await prefs.setString('last_crash_log',
+        await prefs.setString(
+            'last_crash_log',
             'playSong EXCEPTION (paso: $lastStep)\n'
-            'Song: ${song.title}\n'
-            'Error: $e\n'
-            'Stack: $st');
+                'Song: ${song.title}\n'
+                'Error: $e\n'
+                'Stack: $st');
       } catch (_) {}
     } finally {
       final actualPlaying = _player.playing;
@@ -246,12 +252,17 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> togglePlayPause() async {
-    _player.playing ? await _handler.pause() : await _handler.play();
-    await _saveSession();
-    _manageVisualizer();
+    if (_toggleInFlight) return;
+    _toggleInFlight = true;
+    try {
+      _player.playing ? await _handler.pause() : await _handler.play();
+      await _saveSession();
+      _manageVisualizer();
+    } finally {
+      _toggleInFlight = false;
+    }
   }
 
-  
   void _manageVisualizer() {
     if (_animationStyle != VisualizerStyle.vinyl && _isPlaying) {
       final sessionId = _player.androidAudioSessionId;
@@ -344,6 +355,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   void toggleShuffle() {
     _isShuffleOn = !_isShuffleOn;
     if (!_isShuffleOn) _shuffleHistory.clear();
+    _syncHandlerPlaybackOptions();
     notifyListeners();
     _saveSession();
   }
@@ -354,8 +366,20 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
       AppRepeatState.all => AppRepeatState.one,
       AppRepeatState.one => AppRepeatState.off,
     };
+    _syncHandlerPlaybackOptions();
     notifyListeners();
     _saveSession();
+  }
+
+  void _syncHandlerPlaybackOptions() {
+    _handler.updatePlaybackOptions(
+      shuffleEnabled: _isShuffleOn,
+      repeatMode: switch (_repeatMode) {
+        AppRepeatState.one => AudioServiceRepeatMode.one,
+        AppRepeatState.all => AudioServiceRepeatMode.all,
+        AppRepeatState.off => AudioServiceRepeatMode.none,
+      },
+    );
   }
 
   void setSleepTimer(int minutes) {
@@ -462,6 +486,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     _currentIndex = restoredIndex >= 0 ? restoredIndex : 0;
     _isShuffleOn = map['isShuffleOn'] as bool? ?? false;
     _repeatMode = _repeatModeFromName(map['repeatMode'] as String?);
+    _syncHandlerPlaybackOptions();
     notifyListeners();
 
     final hasActiveSource = _player.audioSource != null ||
