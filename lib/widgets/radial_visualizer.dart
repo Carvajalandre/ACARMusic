@@ -45,11 +45,24 @@ class _RadialVisualizerState extends State<RadialVisualizer> {
 
   void _processFftData(List<double> data) {
     if (data.isEmpty) return;
-    final mapped = _mapBands(data, _barCount);
+    final rightIndices = <int>[
+      for (var i = 0; i < _barCount; i++)
+        if (cos(_angleForIndex(i)) >= -0.001) i,
+    ];
+    final mapped = _mapBands(data, rightIndices.length);
     for (var i = 0; i < _barCount; i++) {
-      _targets[i] = mapped[i];
+      _targets[i] = 0.0;
+    }
+    for (var i = 0; i < rightIndices.length; i++) {
+      final rightIndex = rightIndices[i];
+      final mirroredIndex = (_barCount - rightIndex) % _barCount;
+      final value = mapped[i];
+      _targets[rightIndex] = value;
+      _targets[mirroredIndex] = value;
     }
   }
+
+  double _angleForIndex(int index) => (index / _barCount) * 2 * pi - pi / 2;
 
   List<double> _mapBands(List<double> data, int count) {
     final output = List<double>.filled(count, 0.0);
@@ -68,12 +81,8 @@ class _RadialVisualizerState extends State<RadialVisualizer> {
         sum += value;
       }
       final avg = sum / (end - start);
-      final emphasis = i < count * 0.18
-          ? 1.08
-          : i > count * 0.72
-              ? 0.92
-              : 1.0;
-      output[i] = ((peak * 0.65 + avg * 0.35) * emphasis).clamp(0.0, 1.0);
+      final shaped = pow((peak * 0.72 + avg * 0.28).clamp(0.0, 1.0), 0.72);
+      output[i] = (shaped * 1.18).clamp(0.0, 1.0).toDouble();
     }
     return output;
   }
