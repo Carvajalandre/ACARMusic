@@ -15,7 +15,8 @@ class MinimalistVisualizer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final artSize = size * 0.7;
+    final artWidth = size * 0.85; //ancho
+    final artHeight = size * 0.90; //alto
     return SizedBox(
       width: size,
       height: size,
@@ -24,10 +25,10 @@ class MinimalistVisualizer extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             Container(
-              width: artSize,
-              height: artSize,
+              width: artWidth,
+              height: artHeight,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(artSize * 0.15),
+                borderRadius: BorderRadius.circular(artHeight * 0.15),
                 boxShadow: [
                   BoxShadow(
                     color: glowColor.withAlpha(50),
@@ -38,21 +39,21 @@ class MinimalistVisualizer extends StatelessWidget {
               ),
             ),
             ClipRRect(
-              borderRadius: BorderRadius.circular(artSize * 0.15),
+              borderRadius: BorderRadius.circular(artHeight * 0.15),
               child: SizedBox(
-                width: artSize,
-                height: artSize,
+                width: artWidth,
+                height: artHeight,
                 child: albumId != null
                     ? QueryArtworkWidget(
                         id: albumId!,
                         type: ArtworkType.ALBUM,
                         artworkFit: BoxFit.cover,
-                        artworkWidth: artSize,
-                        artworkHeight: artSize,
+                        artworkWidth: 600,
+                        artworkHeight: 600,
                         keepOldArtwork: true,
-                        nullArtworkWidget: _defaultArt(artSize),
+                        nullArtworkWidget: _defaultArt(artHeight),
                       )
-                    : _defaultArt(artSize),
+                    : _defaultArt(artHeight),
               ),
             ),
           ],
