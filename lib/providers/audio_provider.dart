@@ -115,7 +115,10 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
 
       final wasPlaying = _isPlaying;
       _isPlaying = state.playing;
-      if (wasPlaying != _isPlaying) notifyListeners();
+      if (wasPlaying != _isPlaying) {
+        _manageVisualizer();
+        notifyListeners();
+      }
       _saveSession();
       if (state.processingState == ProcessingState.completed) {
         _onTrackCompleted();
@@ -264,10 +267,11 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _manageVisualizer() {
-    if (_animationStyle != VisualizerStyle.vinyl && _isPlaying) {
+    if (_animationStyle != VisualizerStyle.vinyl) {
       final sessionId = _player.androidAudioSessionId;
       if (sessionId != null) {
         visualizerService.start(sessionId);
+        visualizerService.setPlaybackActive(_player.playing);
         return;
       }
     }

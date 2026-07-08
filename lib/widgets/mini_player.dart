@@ -107,11 +107,19 @@ class MiniPlayer extends StatelessWidget {
                         decoration: const BoxDecoration(
                             color: AppTheme.tertiary, shape: BoxShape.circle),
                         child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 180),
-                          switchInCurve: Curves.easeOut,
-                          switchOutCurve: Curves.easeIn,
+                          duration: const Duration(milliseconds: 130),
+                          reverseDuration: const Duration(milliseconds: 80),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
                           transitionBuilder: (child, animation) =>
-                              ScaleTransition(scale: animation, child: child),
+                              FadeTransition(
+                            opacity: animation,
+                            child: ScaleTransition(
+                              scale: Tween<double>(begin: 0.84, end: 1.0)
+                                  .animate(animation),
+                              child: child,
+                            ),
+                          ),
                           child: Icon(
                               isPlaying
                                   ? Icons.pause_rounded

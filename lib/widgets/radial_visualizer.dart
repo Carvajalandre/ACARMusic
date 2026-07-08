@@ -19,24 +19,18 @@ class RadialVisualizer extends StatefulWidget {
   State<RadialVisualizer> createState() => _RadialVisualizerState();
 }
 
-class _RadialVisualizerState extends State<RadialVisualizer>
-    with SingleTickerProviderStateMixin {
-  static const int _barCount = 96;
+class _RadialVisualizerState extends State<RadialVisualizer> {
+  static const int _barCount = 64;
 
   final List<double> _levels = List.filled(_barCount, 0.0);
   final List<double> _targets = List.filled(_barCount, 0.0);
   StreamSubscription<List<double>>? _subscription;
-  late final AnimationController _ticker;
+  Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
-    _ticker = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 16),
-    )
-      ..addListener(_tick)
-      ..repeat();
+    _ticker = Timer.periodic(const Duration(milliseconds: 33), (_) => _tick());
     _subscription = widget.fftStream.listen(_processFftData);
   }
 
@@ -95,10 +89,10 @@ class _RadialVisualizerState extends State<RadialVisualizer>
     var changed = false;
     for (var i = 0; i < _barCount; i++) {
       final target = _targets[i];
-      final speed = target > _levels[i] ? 0.34 : (energy < 0.02 ? 0.24 : 0.14);
+      final speed = target > _levels[i] ? 0.58 : (energy < 0.02 ? 0.42 : 0.28);
       final next = (_levels[i] + (target - _levels[i]) * speed).clamp(0.0, 1.0);
       if ((next - _levels[i]).abs() > 0.001) changed = true;
-      _levels[i] = energy < 0.01 ? next * 0.58 : next;
+      _levels[i] = energy < 0.01 ? next * 0.42 : next;
     }
     if (changed) setState(() {});
   }
@@ -106,7 +100,7 @@ class _RadialVisualizerState extends State<RadialVisualizer>
   @override
   void dispose() {
     _subscription?.cancel();
-    _ticker.dispose();
+    _ticker?.cancel();
     super.dispose();
   }
 
@@ -161,15 +155,14 @@ class _RadialPainter extends CustomPainter {
       );
       final opacity = (0.32 + level * 0.68).clamp(0.0, 1.0);
 
-      if (level > 0.12) {
+      if (level > 0.2) {
         canvas.drawLine(
           start,
           end,
           Paint()
-            ..color = color.withAlpha((85 * opacity).round())
-            ..strokeWidth = strokeWidth * 4.2
-            ..strokeCap = StrokeCap.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+            ..color = color.withAlpha((42 * opacity).round())
+            ..strokeWidth = strokeWidth * 2.6
+            ..strokeCap = StrokeCap.round,
         );
       }
 
@@ -177,12 +170,8 @@ class _RadialPainter extends CustomPainter {
         start,
         end,
         Paint()
-          ..shader = LinearGradient(
-            colors: [
-              color.withAlpha((80 * opacity).round()),
-              color.withAlpha((255 * opacity).round()),
-            ],
-          ).createShader(Rect.fromPoints(start, end))
+          ..color =
+              color.withAlpha((110 + 145 * opacity).round().clamp(90, 255))
           ..strokeWidth = strokeWidth
           ..strokeCap = StrokeCap.round,
       );

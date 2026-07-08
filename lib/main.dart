@@ -141,6 +141,9 @@ Future<void> _requestPermissions() async {
   if (await Permission.storage.isDenied) {
     await Permission.storage.request();
   }
+  if (await Permission.microphone.isDenied) {
+    await Permission.microphone.request();
+  }
   try {
     if (!(await Permission.ignoreBatteryOptimizations.isGranted)) {
       await Permission.ignoreBatteryOptimizations.request();

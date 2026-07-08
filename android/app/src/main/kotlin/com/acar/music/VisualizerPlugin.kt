@@ -17,7 +17,7 @@ class VisualizerPlugin(
     private var listener: Visualizer.OnDataCaptureListener? = null
     private val CHANNEL = "com.acar.music/visualizer"
     private val FFT_CHANNEL = "com.acar.music/visualizer_fft"
-    private val fftBuffer = FloatArray(96)
+    private val fftBuffer = FloatArray(64)
     private var runningMax = 1.0
 
     private val methodChannel: MethodChannel

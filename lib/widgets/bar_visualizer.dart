@@ -20,7 +20,7 @@ class BarVisualizer extends StatefulWidget {
     this.paletteVibrant = AppTheme.primary,
     this.paletteDominant = AppTheme.primary,
     this.paletteMuted = AppTheme.primary,
-    this.barCount = 36,
+    this.barCount = 32,
   });
 
   @override
@@ -62,10 +62,10 @@ class _BarVisualizerState extends State<BarVisualizer> {
     setState(() {
       for (var i = 0; i < _levels.length; i++) {
         final target = mapped[i];
-        final attack = target > _levels[i] ? 0.72 : 0.38;
-        final silenceDecay = energy < 0.025 ? 0.18 : attack;
+        final attack = target > _levels[i] ? 0.86 : 0.52;
+        final silenceDecay = energy < 0.025 ? 0.34 : attack;
         _levels[i] += (target - _levels[i]) * silenceDecay;
-        if (energy < 0.012) _levels[i] *= 0.48;
+        if (energy < 0.012) _levels[i] *= 0.35;
         _levels[i] = _levels[i].clamp(0.0, 1.0);
       }
     });
@@ -152,24 +152,8 @@ class _BarVisualizerPainter extends CustomPainter {
         0.45 + level * 0.45,
       )!;
       final paint = Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [
-            color.withAlpha((90 + level * 90).round().clamp(70, 180)),
-            color.withAlpha((155 + level * 100).round().clamp(120, 255)),
-          ],
-        ).createShader(rect.outerRect);
+        ..color = color.withAlpha((135 + level * 120).round().clamp(90, 255));
       canvas.drawRRect(rect, paint);
-
-      if (level > 0.58) {
-        canvas.drawRRect(
-          rect,
-          Paint()
-            ..color = color.withAlpha((level * 95).round())
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-        );
-      }
     }
   }
 

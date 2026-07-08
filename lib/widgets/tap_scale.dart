@@ -26,7 +26,7 @@ class TapScale extends StatefulWidget {
     this.tooltip,
     this.scale = 0.88,
     this.pressedDuration = const Duration(milliseconds: 90),
-    this.releasedDuration = const Duration(milliseconds: 160),
+    this.releasedDuration = const Duration(milliseconds: 120),
   });
 
   @override
@@ -89,7 +89,7 @@ class _TapScaleState extends State<TapScale> {
       child: AnimatedScale(
         scale: _pressed ? widget.scale : 1.0,
         duration: _pressed ? widget.pressedDuration : widget.releasedDuration,
-        curve: _pressed ? Curves.easeIn : Curves.elasticOut,
+        curve: _pressed ? Curves.easeIn : Curves.easeOutCubic,
         child: child,
       ),
     );

@@ -11,7 +11,9 @@ class VisualizerService {
 
   StreamSubscription? _nativeSub;
   Timer? _simulatedTimer;
+  Timer? _silenceTimer;
   bool _started = false;
+  bool _playbackActive = false;
   int? _activeSessionId;
 
   Stream<List<double>> get fftStream => _controller.stream;
@@ -20,6 +22,7 @@ class VisualizerService {
     if (_started && _activeSessionId == audioSessionId) return true;
     if (_started) await stop();
     _started = true;
+    _playbackActive = true;
     _activeSessionId = audioSessionId;
 
     bool nativeOk = false;
@@ -35,9 +38,11 @@ class VisualizerService {
     if (nativeOk) {
       _nativeSub = _eventChannel.receiveBroadcastStream().listen(
             (data) => _controller.add(
-              (data as List<dynamic>)
-                  .map((value) => (value as num).toDouble())
-                  .toList(growable: false),
+              _playbackActive
+                  ? (data as List<dynamic>)
+                      .map((value) => (value as num).toDouble())
+                      .toList(growable: false)
+                  : _silenceFrame,
             ),
             onError: (_) => _startSimulated(),
           );
@@ -47,13 +52,34 @@ class VisualizerService {
     return true;
   }
 
+  void setPlaybackActive(bool active) {
+    if (_playbackActive == active) return;
+    _playbackActive = active;
+    _silenceTimer?.cancel();
+    _silenceTimer = null;
+
+    if (!active) {
+      _controller.add(_silenceFrame);
+      _silenceTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+        if (!_started || _playbackActive) return;
+        _controller.add(_silenceFrame);
+      });
+    }
+  }
+
+  List<double> get _silenceFrame => List<double>.filled(64, 0.0);
+
   Future<void> stop() async {
     _started = false;
+    _playbackActive = false;
     _activeSessionId = null;
     _nativeSub?.cancel();
     _nativeSub = null;
     _simulatedTimer?.cancel();
     _simulatedTimer = null;
+    _silenceTimer?.cancel();
+    _silenceTimer = null;
+    if (!_controller.isClosed) _controller.add(_silenceFrame);
     try {
       await _methodChannel.invokeMethod('stopVisualizer');
     } catch (_) {}
@@ -67,9 +93,13 @@ class VisualizerService {
     _simulatedTimer?.cancel();
     _simulatedTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
       if (!_started) return;
+      if (!_playbackActive) {
+        _controller.add(_silenceFrame);
+        return;
+      }
       time += dt;
-      final data = List<double>.generate(96, (i) {
-        final freqRatio = i / 96;
+      final data = List<double>.generate(64, (i) {
+        final freqRatio = i / 64;
         double value;
         if (freqRatio < 0.2) {
           value = (0.4 +
