@@ -1,10 +1,10 @@
-﻿# ACARMusic â€” DocumentaciÃ³n TÃ©cnica (Parte 1)
+﻿# ACARMusic Documentación Técnica (Parte 1)
 
 ## Resumen del Proyecto
 
-**ACARMusic** es un reproductor de mÃºsica local para Android, desarrollado en Flutter, inspirado en Samsung Music. Permite reproducir pistas almacenadas en el dispositivo con soporte completo de audio en segundo plano, notificaciones del sistema, y gestiÃ³n de playlists personalizadas. Es open source, personalizable y optimizado para rendimiento y baterÃ­a.
+**ACARMusic** es un reproductor de música local para Android, desarrollado en Flutter, inspirado en Samsung Music. Permite reproducir pistas almacenadas en el dispositivo con soporte completo de audio en segundo plano, notificaciones del sistema, y gestión de playlists personalizadas. Es open source, personalizable y optimizado para rendimiento y baterÃ­a.
 
-- **VersiÃ³n:** 1.0.0+1  
+- **Versión:** 1.0.0+1  
 - **SDK Flutter:** `>=3.3.0 <4.0.0`  
 - **Dispositivo de prueba:** Samsung S20 FE  
 - **Rama activa:** `CarvaNew`  
@@ -52,7 +52,7 @@ app.dart           â†’ Widget raÃ­z, TickerMode (optimiza baterÃ­a en b
 
 ## Dependencias (`pubspec.yaml`)
 
-**UbicaciÃ³n:** `c:\Users\Andres\Desktop\Desarrollo\ACAR\ACARMusic\v2\ACARMusic\pubspec.yaml`
+**Ubicación:** `c:\Users\Andres\Desktop\Desarrollo\ACAR\ACARMusic\v2\ACARMusic\pubspec.yaml`
 
 | Paquete | VersiÃ³n | Uso |
 |---|---|---|
@@ -100,7 +100,7 @@ Punto de entrada de la aplicaciÃ³n. Ejecuta la inicializaciÃ³n completa ante
 | `main()` | FunciÃ³n principal `async`. Inicializa bindings Flutter, orientaciones permitidas, estilo de la barra del sistema, solicita permisos, inicializa `AudioService` y lanza la app con `MultiProvider`. |
 | `_requestPermissions()` | Solicita en runtime: notificaciones, audio, almacenamiento, y optimizaciÃ³n de baterÃ­a (`ignoreBatteryOptimizations`). El bloque de baterÃ­a estÃ¡ envuelto en `try/catch` para evitar fallos en dispositivos que no lo soporten. |
 
-### ConfiguraciÃ³n de `AudioService`
+### Configuración de `AudioService`
 ```dart
 AudioServiceConfig(
   androidNotificationChannelId: 'com.acar.music.playback',
@@ -176,7 +176,7 @@ enum AppRepeatState { off, all, one }
 | `durationNotifier` | `ValueNotifier<Duration>` | DuraciÃ³n de la pista actual |
 | `sleepRemainingNotifier` | `ValueNotifier<Duration>` | Tiempo restante del temporizador de sueÃ±o |
 
-### MÃ©todos principales
+### Métodos principales
 
 | MÃ©todo | DescripciÃ³n |
 |---|---|
@@ -228,9 +228,9 @@ Gestiona la biblioteca musical: carga, filtrado, favoritos, historial, playlists
 | `custom_playlists_v2` | JSON de `List<CustomPlaylist>` |
 | `play_counts` | JSON de `Map<String, int>` |
 
-### MÃ©todos principales
+### Métodos principales
 
-| MÃ©todo | DescripciÃ³n |
+| Método | DescripciÃ³n |
 |---|---|
 | `loadLibrary()` | Consulta `on_audio_query` para pistas, Ã¡lbumes y artistas. Filtra rutas de apps de mensajerÃ­a. |
 | `search(String)` | Filtra por tÃ­tulo, artista y Ã¡lbum (case-insensitive). |
@@ -265,7 +265,7 @@ Modelo de datos para playlists personalizadas.
 | `name` | `String` | Nombre de la playlist |
 | `songIds` | `List<int>` | IDs de canciones en orden personalizado |
 
-### MÃ©todos
+### Métodos
 
 | MÃ©todo | DescripciÃ³n |
 |---|---|
@@ -308,7 +308,7 @@ Construye `ThemeData` con `useMaterial3: true`, `splashColor: transparent` (quit
 
 Shell de navegaciÃ³n principal. Muestra la pantalla correcta segÃºn permisos y orientaciÃ³n.
 
-| Elemento | DescripciÃ³n |
+| Elemento | Descripción |
 |---|---|
 | `_screens` | `IndexedStack` con las 4 pestaÃ±as: Biblioteca, Explorar, Listas, Ajustes |
 | `_buildPortrait()` | Layout vertical: `BottomNavigationBar` personalizado + `MiniPlayer` sobre el contenido |
@@ -325,7 +325,7 @@ Shell de navegaciÃ³n principal. Muestra la pantalla correcta segÃºn permisos
 
 Biblioteca musical con tabs y sidebar alfabÃ©tico. Usa `NestedScrollView` para que el header colapse al hacer scroll.
 
-| MÃ©todo / Widget | DescripciÃ³n |
+| Método / Widget | Descripción |
 |---|---|
 | `TabController` (4 tabs) | Pistas / Ãlbumes / Artistas / Carpetas |
 | `_buildLetterIndex()` | Construye un mapa `letra â†’ Ã­ndice` para el sidebar alfabÃ©tico |
@@ -346,7 +346,7 @@ Biblioteca musical con tabs y sidebar alfabÃ©tico. Usa `NestedScrollView` para
 
 Pantalla de descubrimiento con buscador en tiempo real, historial y tarjetas de gÃ©neros.
 
-| Elemento | DescripciÃ³n |
+| Elemento | Descripción |
 |---|---|
 | `_searchCtrl` | `TextEditingController` del campo de bÃºsqueda |
 | `_buildSearchBar()` | Campo de texto con `prefixIcon` lupa y `suffixIcon` Ã— para limpiar. Llama a `library.search(v)` en `onChanged`. |
@@ -362,7 +362,7 @@ Pantalla de descubrimiento con buscador en tiempo real, historial y tarjetas de 
 
 Hub de listas de reproducciÃ³n. Muestra colecciones inteligentes y playlists personalizadas.
 
-| Elemento | DescripciÃ³n |
+| Elemento | Descripción |
 |---|---|
 | `_buildTopCards()` | 4 tarjetas con gradiente (2Ã—2): ReciÃ©n aÃ±adidas, MÃ¡s escuchadas, Favoritos, Escuchadas recientemente. Cada una navega a `SongListScreen`. |
 | `_buildPlaylistsList()` | `SliverList` de las playlists del usuario. Cada item tiene botÃ³n `â‹®` con opciones. |
@@ -376,7 +376,7 @@ Hub de listas de reproducciÃ³n. Muestra colecciones inteligentes y playlists p
 ## `lib/screens/song_list_screen.dart`
 **Ruta:** `lib/screens/song_list_screen.dart`  **Estado:** âš ï¸ Pendiente de commit
 
-Pantalla genÃ©rica de lista de canciones. Usada por favoritos, recientes, mÃ¡s escuchadas y playlists personalizadas.
+Pantalla genérica de lista de canciones. Usada por favoritos, recientes, mÃ¡s escuchadas y playlists personalizadas.
 
 | Elemento | DescripciÃ³n |
 |---|---|
@@ -397,7 +397,7 @@ Pantalla genÃ©rica de lista de canciones. Usada por favoritos, recientes, mÃ�
 
 Pantalla completa del reproductor. La mÃ¡s compleja del proyecto (759 lÃ­neas).
 
-| Elemento | DescripciÃ³n |
+| Elemento | Descripción |
 |---|---|
 | `_colorA`, `_colorB`, `_glowColor` | Colores dinÃ¡micos extraÃ­dos de la portada del Ã¡lbum |
 | `_bgCtrl` | `AnimationController` de 6 segundos en loop para el fondo degradado animado |
