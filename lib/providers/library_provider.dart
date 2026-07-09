@@ -26,7 +26,10 @@ class LibraryProvider extends ChangeNotifier {
   static const String _recentlyKey = 'recently_played_ids';
   static const String _playlistsKey = 'custom_playlists_v2';
   static const String _playCountsKey = 'play_counts';
+  static const String _playlistSortPrefix = 'playlist_sort_mode_';
   static const int _maxRecently = 50;
+
+  SharedPreferences? _prefs;
 
   List<SongModel> get songs => _searchQuery.isEmpty ? _songs : _filteredSongs;
   List<SongModel> get recentlyAdded => _recentlyAdded;
@@ -91,7 +94,7 @@ class LibraryProvider extends ChangeNotifier {
             dur >= 10000;
       }).toList();
 
-      // Recién añadidas (las 50 más nuevas por fecha de modificación)
+      // ReciÃ©n aÃ±adidas (las 50 mÃ¡s nuevas por fecha de modificaciÃ³n)
       final byDate = [..._songs];
       byDate
           .sort((a, b) => (b.dateModified ?? 0).compareTo(a.dateModified ?? 0));
@@ -117,7 +120,8 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<void> _loadPersistedData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      _prefs = await SharedPreferences.getInstance();
+      final prefs = _prefs!;
 
       // Favoritos
       final favIds = prefs.getStringList(_favoritesKey) ?? [];
@@ -152,7 +156,7 @@ class LibraryProvider extends ChangeNotifier {
     }
   }
 
-  // ── Búsqueda ──────────────────────────────────────────────────────────────
+  // â”€â”€ BÃºsqueda â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void search(String query) {
     _searchQuery = query.toLowerCase().trim();
     _filteredSongs = _searchQuery.isEmpty
@@ -172,7 +176,7 @@ class LibraryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Favoritos ─────────────────────────────────────────────────────────────
+  // â”€â”€ Favoritos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void addToFavorites(SongModel song) {
     if (!_favorites.any((s) => s.id == song.id)) {
       _favorites.add(song);
@@ -195,7 +199,7 @@ class LibraryProvider extends ChangeNotifier {
         _favoritesKey, _favorites.map((s) => s.id.toString()).toList());
   }
 
-  // ── Recientes ─────────────────────────────────────────────────────────────
+  // â”€â”€ Recientes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void addToRecentlyPlayed(SongModel song) {
     _recentlyPlayed.removeWhere((s) => s.id == song.id);
     _recentlyPlayed.insert(0, song);
@@ -212,7 +216,7 @@ class LibraryProvider extends ChangeNotifier {
         _recentlyKey, _recentlyPlayed.map((s) => s.id.toString()).toList());
   }
 
-  // ── Conteo de reproducciones ──────────────────────────────────────────────
+  // â”€â”€ Conteo de reproducciones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void incrementPlayCount(int songId) {
     _playCounts[songId] = (_playCounts[songId] ?? 0) + 1;
     _savePlayCounts();
@@ -225,7 +229,7 @@ class LibraryProvider extends ChangeNotifier {
     await prefs.setString(_playCountsKey, jsonEncode(map));
   }
 
-  // ── Playlists personalizadas ───────────────────────────────────────────────
+  // â”€â”€ Playlists personalizadas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> createPlaylist(String name) async {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     _playlists.add(CustomPlaylist(id: id, name: name));
@@ -251,10 +255,21 @@ class LibraryProvider extends ChangeNotifier {
   void addSongToPlaylist(String playlistId, int songId) {
     final idx = _playlists.indexWhere((p) => p.id == playlistId);
     if (idx >= 0 && !_playlists[idx].songIds.contains(songId)) {
-      _playlists[idx].songIds.add(songId);
+      final updatedSongIds = List<int>.from(_playlists[idx].songIds)..insert(0, songId);
+      _playlists[idx] = _playlists[idx].copyWith(songIds: updatedSongIds);
       _savePlaylists();
       notifyListeners();
     }
+  }
+
+  String getPlaylistSortMode(String playlistId) {
+    return _prefs?.getString('$_playlistSortPrefix$playlistId') ?? 'custom';
+  }
+
+  Future<void> setPlaylistSortMode(String playlistId, String sortMode) async {
+    _prefs ??= await SharedPreferences.getInstance();
+    await _prefs?.setString('$_playlistSortPrefix$playlistId', sortMode);
+    notifyListeners();
   }
 
   void removeSongFromPlaylist(String playlistId, int songId) {
@@ -272,14 +287,14 @@ class LibraryProvider extends ChangeNotifier {
     if (idx >= 0) {
       _playlists[idx] = _playlists[idx].copyWith(songIds: newOrder);
       _savePlaylists();
-      // No notifyListeners: la UI ya actualizó el estado local
+      notifyListeners();
     }
   }
 
   List<SongModel> getSongsForPlaylist(String playlistId) {
     final pl = _playlists.where((p) => p.id == playlistId).firstOrNull;
     if (pl == null) return [];
-    // Mapa para O(1) lookup — devuelve en el orden exacto de songIds (respeta drag & drop)
+    // Mapa para O(1) lookup â€” devuelve en el orden exacto de songIds (respeta drag & drop)
     final songMap = {for (final s in _songs) s.id: s};
     return pl.songIds.map((id) => songMap[id]).whereType<SongModel>().toList();
   }
@@ -292,7 +307,7 @@ class LibraryProvider extends ChangeNotifier {
     await prefs.setString(_playlistsKey, CustomPlaylist.encodeList(_playlists));
   }
 
-  // ── Por álbum / artista ───────────────────────────────────────────────────
+  // â”€â”€ Por Ã¡lbum / artista â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<SongModel> getSongsByAlbum(int albumId) =>
       _songs.where((s) => s.albumId == albumId).toList();
 

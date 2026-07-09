@@ -79,7 +79,7 @@ Future<void> main() async {
           androidNotificationChannelDescription: 'Reproducción de música',
           androidNotificationIcon: 'drawable/ic_notification',
           androidStopForegroundOnPause: false,
-          androidNotificationOngoing: true,
+          androidNotificationOngoing: false,
         ),
       );
       _audioServiceOk = true;
@@ -140,6 +140,9 @@ Future<void> _requestPermissions() async {
   }
   if (await Permission.storage.isDenied) {
     await Permission.storage.request();
+  }
+  if (await Permission.microphone.isDenied) {
+    await Permission.microphone.request();
   }
   try {
     if (!(await Permission.ignoreBatteryOptimizations.isGranted)) {

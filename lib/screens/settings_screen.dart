@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../models/animation_style.dart';
 import '../theme/app_theme.dart';
 import '../providers/audio_provider.dart';
 
@@ -27,11 +29,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               label: 'Experiencia',
               children: [
                 _buildSettingTile(
-                  icon: Icons.equalizer_rounded,
-                  title: 'Ecualizador',
+                  icon: Icons.animation_rounded,
+                  title: 'Animaciones',
+                  subtitle: audio.animationStyle.displayName,
+                  trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceVariant),
+                  onTap: () => _showVisualizerStyleSheet(context, audio),
+                ),
+                _buildSettingTile(
+                  icon: Icons.graphic_eq_rounded,
+                  title: 'Calidad y efectos de sonido',
                   subtitle: null,
                   trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceVariant),
-                  onTap: () => _showEqualizer(context),
+                  onTap: () => _openSoundEffects(context, audio),
                 ),
                 _buildSleepTimerTile(context, audio),
                 _buildSettingTile(
@@ -284,21 +293,115 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
 
-  void _showEqualizer(BuildContext context) {
+  // ── Animaciones — selector de estilo de visualizador ─────────────────────
+  void _showVisualizerStyleSheet(BuildContext context, AudioProvider audio) {
+    final current = audio.animationStyle;
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+                color: AppTheme.outline, borderRadius: BorderRadius.circular(2)),
+          ),
+          Text('Animaciones',
+              style: GoogleFonts.manrope(
+                  color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 16),
+          ...VisualizerStyle.values.map((style) {
+            final selected = style == current;
+            final isDefault = style == VisualizerStyle.vinyl;
+            return ListTile(
+              leading: Text(style.iconLabel, style: const TextStyle(fontSize: 24)),
+              title: Text(
+                '${style.displayName}${isDefault ? ' (Por defecto)' : ''}',
+                style: GoogleFonts.manrope(
+                  color: AppTheme.onSurface,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+              trailing: selected
+                  ? const Icon(Icons.check_rounded, color: AppTheme.primary)
+                  : null,
+              onTap: () {
+                audio.animationStyle = style;
+                Navigator.pop(ctx);
+              },
+            );
+          }),
+          const SizedBox(height: 12),
+          Text('Los cambios se aplican al instante en el reproductor.',
+              style: GoogleFonts.manrope(
+                  color: AppTheme.onSurfaceVariant, fontSize: 12)),
+        ]),
+      ),
+    );
+  }
+
+  static const _eqChannel = MethodChannel('com.acar.music/equalizer');
+
+  Future<void> _openSoundEffects(BuildContext context, AudioProvider audio) async {
+    final sessionId = audio.androidAudioSessionId ?? 0;
+    try {
+      final opened = await _eqChannel.invokeMethod<bool>('openEqualizer', {
+        'audioSessionId': sessionId,
+      });
+      if (opened == false && context.mounted) {
+        // El dispositivo no tiene ecualizador de sistema → mostrar aviso
+        _showNoEqDialog(context);
+      }
+    } on PlatformException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: ${e.message}',
+              style: GoogleFonts.manrope(color: Colors.white)),
+          backgroundColor: Colors.redAccent,
+        ));
+      }
+    }
+  }
+
+  void _showNoEqDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Ecualizador',
-              style: GoogleFonts.manrope(color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 24),
-          Text('El ecualizador requiere integración del sistema.\nUsa los ajustes de sonido de tu dispositivo.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.manrope(color: AppTheme.onSurfaceVariant, fontSize: 13)),
-          const SizedBox(height: 24),
+          Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+                color: AppTheme.outline, borderRadius: BorderRadius.circular(2)),
+          ),
+          Container(
+            width: 64, height: 64,
+            decoration: BoxDecoration(
+                color: AppTheme.primary.withAlpha(30), shape: BoxShape.circle),
+            child: const Icon(Icons.graphic_eq_rounded,
+                color: AppTheme.primary, size: 32),
+          ),
+          const SizedBox(height: 16),
+          Text('Calidad y efectos de sonido',
+              style: GoogleFonts.manrope(
+                  color: AppTheme.onSurface,
+                  fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
+          Text(
+            'Tu dispositivo no tiene una aplicación de efectos de sonido del sistema instalada (Dolby Atmos, Mi Sound Enhancer, etc.).\n\nPuedes instalar una app de ecualizador desde la Play Store para mejorar el sonido.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.manrope(
+                color: AppTheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+          ),
+          const SizedBox(height: 20),
         ]),
       ),
     );

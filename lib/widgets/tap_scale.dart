@@ -26,7 +26,7 @@ class TapScale extends StatefulWidget {
     this.tooltip,
     this.scale = 0.88,
     this.pressedDuration = const Duration(milliseconds: 90),
-    this.releasedDuration = const Duration(milliseconds: 160),
+    this.releasedDuration = const Duration(milliseconds: 120),
   });
 
   @override
@@ -48,9 +48,6 @@ class _TapScaleState extends State<TapScale> {
 
   void _onTapUp(TapUpDetails _) {
     setState(() => _pressed = false);
-    // No disparar acción si fue long press
-    if (!_isLongPress) widget.onTap();
-    _isLongPress = false;
   }
 
   void _onTapCancel() {
@@ -82,13 +79,17 @@ class _TapScaleState extends State<TapScale> {
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,
+      onTap: () {
+        if (!_isLongPress) widget.onTap();
+        _isLongPress = false;
+      },
       // onLongPress solo si hay tooltip configurado
       onLongPress: widget.tooltip != null ? _onLongPress : null,
       behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
         scale: _pressed ? widget.scale : 1.0,
         duration: _pressed ? widget.pressedDuration : widget.releasedDuration,
-        curve: _pressed ? Curves.easeIn : Curves.elasticOut,
+        curve: _pressed ? Curves.easeIn : Curves.easeOutCubic,
         child: child,
       ),
     );

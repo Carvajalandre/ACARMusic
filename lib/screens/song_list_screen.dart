@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +11,22 @@ import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
 import '../widgets/track_tile.dart';
 import '../widgets/mini_player.dart';
+
+class ReorderableCustomDelayDragStartListener extends ReorderableDragStartListener {
+  const ReorderableCustomDelayDragStartListener({
+    super.key,
+    required super.child,
+    required super.index,
+    super.enabled,
+  });
+
+  @override
+  MultiDragGestureRecognizer createRecognizer() {
+    return DelayedMultiDragGestureRecognizer(
+      delay: const Duration(milliseconds: 400),
+    );
+  }
+}
 
 // ─── Modos de ordenación ──────────────────────────────────────────────────────
 enum _SortMode { custom, az, recentlyAdded }
@@ -36,22 +54,108 @@ class _SongListScreenState extends State<SongListScreen> {
   late List<SongModel> _sorted;
   final Random _random = Random();
 
+  final ScrollController _scrollController = ScrollController();
+  double _sidebarScrollOffset = 0;
+  Map<String, int> _letterIndex = {};
+  String? _activeLetter;
+  bool _showLetterOverlay = false;
+  final GlobalKey _sidebarKey = GlobalKey();
+  static const double _tileHeight = 72.0;
+  static const double _kExpandedHeader = 200.0;
+  static const double _kHeaderInfoHeight = 40.0;
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onSidebarScroll);
     _sorted = List.from(widget.songs);
-  }
-
-  @override
-  void didUpdateWidget(SongListScreen old) {
-    super.didUpdateWidget(old);
-    if (old.songs != widget.songs) {
-      _sorted = List.from(widget.songs);
+    if (widget.playlistId != null) {
+      final provider = context.read<LibraryProvider>();
+      final modeStr = provider.getPlaylistSortMode(widget.playlistId!);
+      _sortMode = _SortMode.values.firstWhere(
+          (e) => e.name == modeStr,
+          orElse: () => _SortMode.custom);
       _applySort();
     }
   }
 
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onSidebarScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onSidebarScroll() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    if ((offset - _sidebarScrollOffset).abs() > 0.5) {
+      setState(() => _sidebarScrollOffset = offset);
+    }
+  }
+
+  void _buildLetterIndex(List<SongModel> songs) {
+    _letterIndex = {};
+    for (int i = 0; i < songs.length; i++) {
+      final raw = songs[i].title ?? '';
+      final letter = raw.isEmpty ? '#' : raw[0].toUpperCase();
+      final key = RegExp(r'[A-Z]').hasMatch(letter) ? letter : '#';
+      _letterIndex.putIfAbsent(key, () => i);
+    }
+  }
+
+  void _scrollToLetter(String letter) {
+    final idx = _letterIndex[letter];
+    if (idx == null) return;
+    final collapsedOffset = _kExpandedHeader - kToolbarHeight;
+    final targetOffset = collapsedOffset + _kHeaderInfoHeight + (idx * _tileHeight);
+    _scrollController.animateTo(
+      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _updateLetterFromGlobal(Offset globalPos) {
+    final box = _sidebarKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final localY = box.globalToLocal(globalPos).dy.clamp(0.0, box.size.height);
+    final letters = [
+      '#',
+      ...List.generate(26, (i) => String.fromCharCode(65 + i))
+    ];
+    final idx =
+        (localY / box.size.height * letters.length).clamp(0, letters.length - 1).toInt();
+    final letter = letters[idx];
+    if (_activeLetter != letter) {
+      setState(() => _activeLetter = letter);
+      if (_letterIndex.containsKey(letter)) _scrollToLetter(letter);
+    }
+  }
+
+  /// Sincroniza [_sorted] con los datos vivos del provider si cambiaron.
+  /// Se llama desde [build] (sin setState) y desde [_applySort] (con setState).
+  void _syncSorted() {
+    if (widget.playlistId == null) return;
+    final liveSongs = context.read<LibraryProvider>().getSongsForPlaylist(widget.playlistId!);
+    final liveIds = liveSongs.map((s) => s.id).toList();
+    final sortedIds = _sorted.map((s) => s.id).toList();
+    if (listEquals(liveIds, sortedIds)) return;
+    _sorted = List.from(liveSongs);
+    switch (_sortMode) {
+      case _SortMode.az:
+        _sorted.sort((a, b) => (a.title ?? '')
+            .toLowerCase()
+            .compareTo((b.title ?? '').toLowerCase()));
+        break;
+      case _SortMode.recentlyAdded:
+      case _SortMode.custom:
+        break;
+    }
+  }
+
   void _applySort() {
+    _syncSorted();
     setState(() {
       switch (_sortMode) {
         case _SortMode.az:
@@ -60,12 +164,7 @@ class _SongListScreenState extends State<SongListScreen> {
               .compareTo((b.title ?? '').toLowerCase()));
           break;
         case _SortMode.recentlyAdded:
-          // index original = orden de adición
-          _sorted = List.from(widget.songs);
-          break;
         case _SortMode.custom:
-          // respeta el orden guardado en widget.songs (que es el orden de songIds en CustomPlaylist)
-          _sorted = List.from(widget.songs);
           break;
       }
     });
@@ -86,11 +185,21 @@ class _SongListScreenState extends State<SongListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // NOTA: context.read() aquí — NO se suscribe a cambios. Correcto para evitar
-    // rebuilds innecesarios. El mismo AudioProvider instance siempre.
-    // Las callbacks acceden a context.read() en el momento del tap para
-    // garantizar que nunca usan una referencia stale.
     final isPlaylist = widget.playlistId != null;
+    // watch para reaccionar a cambios externos en la playlist
+    if (isPlaylist) context.watch<LibraryProvider>();
+
+    // Sincronizar _sorted si cambian los elementos (adiciones/eliminaciones)
+    _syncSorted();
+
+    if (isPlaylist && _sortMode == _SortMode.az) {
+      _buildLetterIndex(_sorted);
+    }
+
+    final letters = [
+      '#',
+      ...List.generate(26, (i) => String.fromCharCode(65 + i))
+    ];
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -102,8 +211,11 @@ class _SongListScreenState extends State<SongListScreen> {
           return const MiniPlayer();
         },
       ),
-      body: CustomScrollView(
-        slivers: [
+      body: Stack(
+        children: [
+          CustomScrollView(
+            controller: _scrollController,
+            slivers: [
           // ── AppBar con portadas ──────────────────────────────────────
           SliverAppBar(
             backgroundColor: AppTheme.background,
@@ -203,37 +315,29 @@ class _SongListScreenState extends State<SongListScreen> {
                   final song = _sorted[i];
                   // key en Material (no en el listener) para que el scroll funcione
                   // ReorderableDragStartListener SOLO en el ícono de handle
-                  return Material(
+                  return ReorderableCustomDelayDragStartListener(
                     key: ValueKey(song.id),
-                    color: Colors.transparent,
-                    child: Selector<AudioProvider, bool>(
-                      selector: (_, a) => a.currentSong?.id == song.id,
-                      builder: (context, isPlaying, _) => TrackTile(
-                        song: song,
-                        isPlaying: isPlaying,
-                        onTap: () {
-                          context.read<LibraryProvider>().addToRecentlyPlayed(song);
-                          context.read<LibraryProvider>().incrementPlayCount(song.id);
-                          context.read<AudioProvider>().playSong(song, _sorted, i);
-                        },
-                        onMore: () => _showOptions(context, song, context.read<LibraryProvider>()),
-                        trailingOverride:
-                            Row(mainAxisSize: MainAxisSize.min, children: [
-                          IconButton(
-                              onPressed: () =>
-                                  _showOptions(context, song, context.read<LibraryProvider>()),
-                              icon: const Icon(Icons.more_horiz_rounded,
-                                  color: AppTheme.onSurfaceVariant)),
-                          // Solo el handle inicia el drag — el resto del tile scrollea normalmente
-                          ReorderableDragStartListener(
-                            index: i,
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 4),
-                              child: Icon(Icons.drag_handle_rounded,
-                                  color: AppTheme.outline, size: 22),
-                            ),
+                    index: i,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Selector<AudioProvider, bool>(
+                        selector: (_, a) => a.currentSong?.id == song.id,
+                        builder: (context, isPlaying, _) => TrackTile(
+                          song: song,
+                          isPlaying: isPlaying,
+                          onTap: () {
+                            context.read<LibraryProvider>().addToRecentlyPlayed(song);
+                            context.read<LibraryProvider>().incrementPlayCount(song.id);
+                            context.read<AudioProvider>().playSong(song, _sorted, i);
+                          },
+                          onMore: () => _showOptions(context, song, context.read<LibraryProvider>()),
+                          trailingOverride: IconButton(
+                            onPressed: () =>
+                                _showOptions(context, song, context.read<LibraryProvider>()),
+                            icon: const Icon(Icons.more_horiz_rounded,
+                                color: AppTheme.onSurfaceVariant),
                           ),
-                        ]),
+                        ),
                       ),
                     ),
                   );
@@ -268,8 +372,108 @@ class _SongListScreenState extends State<SongListScreen> {
           const SliverToBoxAdapter(child: SizedBox(height: 8)),
         ],
       ),
-    );
-  }
+      if (isPlaylist && _sortMode == _SortMode.az && _sorted.isNotEmpty)
+        Positioned(
+          right: 0,
+          top: max(kToolbarHeight.toDouble(), _kExpandedHeader - _sidebarScrollOffset) + _kHeaderInfoHeight,
+          bottom: 40,
+          child: Listener(
+            onPointerDown: (e) {
+              setState(() => _showLetterOverlay = true);
+              _updateLetterFromGlobal(e.position);
+            },
+            onPointerMove: (e) {
+              _updateLetterFromGlobal(e.position);
+            },
+            onPointerUp: (_) {
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted) {
+                  setState(() {
+                    _showLetterOverlay = false;
+                    _activeLetter = null;
+                  });
+                }
+              });
+            },
+            onPointerCancel: (_) {
+              setState(() {
+                _showLetterOverlay = false;
+                _activeLetter = null;
+              });
+            },
+            child: Container(
+              key: _sidebarKey,
+              width: 36,
+              color: Colors.transparent,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: letters.map((letter) {
+                  final enabled = _letterIndex.containsKey(letter);
+                  final isActive = _activeLetter == letter;
+                  return AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 80),
+                    style: TextStyle(
+                      fontSize: isActive ? 12 : 9,
+                      fontWeight: FontWeight.w700,
+                      color: isActive
+                          ? AppTheme.tertiary
+                          : enabled
+                              ? AppTheme.primary
+                              : AppTheme.outline.withAlpha(60),
+                    ),
+                    child: Text(letter, textAlign: TextAlign.center),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+      if (_showLetterOverlay && _activeLetter != null)
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Center(
+              child: AnimatedScale(
+                scale: _showLetterOverlay ? 1.0 : 0.6,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOutBack,
+                child: Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceContainerHigh.withAlpha(220),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: AppTheme.primary.withAlpha(60), width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(100),
+                        blurRadius: 24,
+                      )
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      _activeLetter!,
+                      style: TextStyle(
+                        fontSize: 52,
+                        fontWeight: FontWeight.w900,
+                        color: _letterIndex.containsKey(_activeLetter)
+                            ? AppTheme.tertiary
+                            : AppTheme.outline,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  ),
+);
+}
 
   // ─── Menú de ordenación ──────────────────────────────────────────────────
   Widget _buildSortMenu(bool isPlaylist) {
@@ -277,8 +481,13 @@ class _SongListScreenState extends State<SongListScreen> {
       icon: const Icon(Icons.sort_rounded, color: AppTheme.onSurface),
       color: AppTheme.surfaceContainerHigh,
       onSelected: (mode) {
-        _sortMode = mode;
-        _applySort();
+        setState(() {
+          _sortMode = mode;
+          _applySort();
+        });
+        if (widget.playlistId != null) {
+          context.read<LibraryProvider>().setPlaylistSortMode(widget.playlistId!, mode.name);
+        }
       },
       itemBuilder: (_) => [
         if (isPlaylist)

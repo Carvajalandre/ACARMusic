@@ -3,12 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../audio/audio_handler.dart';
+import '../models/animation_style.dart';
+import '../services/visualizer_service.dart';
 
 enum AppRepeatState { off, all, one }
 
@@ -18,6 +21,8 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _handler.onSkipToNext = skipNext;
     _handler.onSkipToPrevious = skipPrevious;
+    _handler.onToggleShuffle = () async => toggleShuffle();
+    _handler.onToggleRepeat = () async => toggleRepeat();
   }
 
   final ACARMusicHandler _handler;
@@ -53,6 +58,21 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Evita llamadas concurrentes a playSong
   bool _changingTrack = false;
+  bool _toggleInFlight = false;
+
+  // ── Estilo de animación / visualizador ────────────────────────────────────
+  VisualizerStyle _animationStyle = VisualizerStyle.vinyl;
+  final VisualizerService visualizerService = VisualizerService();
+  static const String _visualizerKey = 'visualizer_style_v1';
+
+  VisualizerStyle get animationStyle => _animationStyle;
+
+  set animationStyle(VisualizerStyle value) {
+    _animationStyle = value;
+    _saveVisualizerStyle();
+    notifyListeners();
+    _manageVisualizer(); // arranca/para stream al cambiar estilo en vivo
+  }
 
   static const String _sessionKey = 'audio_session_v1';
 
@@ -65,13 +85,19 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   Duration get position => positionNotifier.value;
   Duration get duration => durationNotifier.value;
 
+  /// ID de sesión de audio de Android — necesario para abrir el ecualizador del sistema.
+  int? get androidAudioSessionId => _player.androidAudioSessionId;
+
   SongModel? get currentSong =>
       _currentIndex >= 0 && _currentIndex < _queue.length
           ? _queue[_currentIndex]
           : null;
 
   void _init() {
-    SharedPreferences.getInstance().then((prefs) => _prefs = prefs);
+    SharedPreferences.getInstance().then((prefs) {
+      _prefs = prefs;
+      _loadVisualizerStyle(prefs);
+    });
 
     _player.positionStream.listen((pos) {
       positionNotifier.value = pos;
@@ -82,14 +108,17 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
         .listen((dur) => durationNotifier.value = dur ?? Duration.zero);
 
     _player.playerStateStream.listen((state) {
-      // Durante cambio de pista, ignorar TODOS los eventos del stream.
-      // Previene: loop infinito de _onTrackCompleted, saves concurrentes,
-      // y notifyListeners con estado inconsistente.
-      if (_changingTrack) return;
+      // Durante cambio de pista o toggle en vuelo, ignorar eventos del stream.
+      // Previene: revertir el estado optimista del botón play/pause por
+      // eventos intermedios (buffering, etc.) emitidos durante el await.
+      if (_changingTrack || _toggleInFlight) return;
 
       final wasPlaying = _isPlaying;
       _isPlaying = state.playing;
-      if (wasPlaying != _isPlaying) notifyListeners();
+      if (wasPlaying != _isPlaying) {
+        _manageVisualizer();
+        notifyListeners();
+      }
       _saveSession();
       if (state.processingState == ProcessingState.completed) {
         _onTrackCompleted();
@@ -128,12 +157,6 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     // Suprimir broadcasts al platform channel durante la transición.
     _handler.suppressBroadcast = true;
 
-    // Señal visual inmediata: la pista anterior se detiene.
-    // Evita que _isPlaying quede con el valor anterior (true) durante la carga
-    // lo que causaba que AnimatedSwitcher mostrara "pausa" incorrectamente.
-    _isPlaying = false;
-    notifyListeners();
-
     // Log diagnóstico: guarda paso a paso para identificar crashes nativos.
     String lastStep = 'inicio';
     try {
@@ -142,15 +165,16 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
 
       Future<void> logStep(String step) async {
         lastStep = step;
-        await prefs.setString('last_crash_log',
+        await prefs.setString(
+            'last_crash_log',
             'playSong crash diagnostic\n'
-            'Paso: $step\n'
-            'Song: ${song.title}\n'
-            'Path: ${song.data}\n'
-            'Index: $index\n'
-            'QueueLen: ${newQueue.length}\n'
-            'PlayerState: ${_player.processingState}\n'
-            'Playing: ${_player.playing}');
+                'Paso: $step\n'
+                'Song: ${song.title}\n'
+                'Path: ${song.data}\n'
+                'Index: $index\n'
+                'QueueLen: ${newQueue.length}\n'
+                'PlayerState: ${_player.processingState}\n'
+                'Playing: ${_player.playing}');
       }
 
       await logStep('1_shuffle_history');
@@ -160,9 +184,12 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       await logStep('2_update_state');
-      final queueChanged = !identical(_queue, newQueue) ||
-          _queue.length != newQueue.length;
-      _queue = newQueue;
+      // Copiar siempre — desvincula _queue de la lista de la UI (_sorted).
+      // Sin esto, cuando la UI reordena _sorted en A-Z, _queue muta en paralelo
+      // y desplaza el índice actual → artwork/botón cambian sin cambiar pista.
+      final queueChanged =
+          _queue.length != newQueue.length || !_listsEqual(_queue, newQueue);
+      _queue = List.from(newQueue);
       _currentIndex = index;
       notifyListeners();
 
@@ -206,29 +233,78 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('Error reproduciendo (paso: $lastStep): $e');
       try {
         final prefs = _prefs ?? await SharedPreferences.getInstance();
-        await prefs.setString('last_crash_log',
+        await prefs.setString(
+            'last_crash_log',
             'playSong EXCEPTION (paso: $lastStep)\n'
-            'Song: ${song.title}\n'
-            'Error: $e\n'
-            'Stack: $st');
+                'Song: ${song.title}\n'
+                'Error: $e\n'
+                'Stack: $st');
       } catch (_) {}
     } finally {
-      _handler.suppressBroadcast = false;
-      _changingTrack = false;
-      // Sincronizar estado real del player al liberar el guard.
-      // Previene race: playerStateStream puede emitir playing=false brevemente
-      // justo después de _changingTrack=false → AnimatedSwitcher flickea.
       final actualPlaying = _player.playing;
+      // Solo notifica si el valor realmente difiere del último emitido.
+      // Evita doble-toggle que causa flicker en AnimatedSwitcher.
       if (_isPlaying != actualPlaying) {
         _isPlaying = actualPlaying;
-        notifyListeners();
       }
+      _handler.suppressBroadcast = false;
+      _changingTrack = false;
+      notifyListeners(); // notify única al final, no en paso 8 también
+      _manageVisualizer();
     }
   }
 
   Future<void> togglePlayPause() async {
-    _player.playing ? await _handler.pause() : await _handler.play();
-    await _saveSession();
+    if (_toggleInFlight) return;
+    _toggleInFlight = true;
+
+    // Actualización optimista: la UI refleja el nuevo estado de inmediato.
+    // El stream listener ignora eventos mientras _toggleInFlight=true,
+    // evitando que eventos intermedios (buffering) reviertan el icono.
+    final wasPlaying = _player.playing;
+    _isPlaying = !wasPlaying;
+    notifyListeners();
+
+    try {
+      if (wasPlaying) {
+        // pause() en just_audio completa rápido — actualiza _playingSubject
+        // sincrónicamente antes del platform call. Seguro usar await.
+        await _player.pause();
+        _handler.refreshPlaybackState();
+      } else {
+        // CRÍTICO: play() en just_audio devuelve un Future que NO completa
+        // hasta que el audio termina o se pausa. Hacer await bloquea
+        // _toggleInFlight indefinidamente → el botón pause nunca responde.
+        // Solución: disparar sin await — just_audio actualiza _playingSubject
+        // sincrónicamente antes del platform call de todas formas.
+        _player.play(); // fire-and-forget intencional
+        _handler.refreshPlaybackState();
+      }
+      _manageVisualizer();
+    } catch (e) {
+      // Revertir en caso de error
+      _isPlaying = wasPlaying;
+      debugPrint('togglePlayPause error: $e');
+    } finally {
+      // Sincronizar con el estado real del player y liberar el guard.
+      // Después de esto el stream listener vuelve a procesar eventos.
+      _isPlaying = _player.playing;
+      _toggleInFlight = false;
+      notifyListeners();
+      _saveSession(); // fire-and-forget — no bloquear la UI
+    }
+  }
+
+  void _manageVisualizer() {
+    if (_animationStyle != VisualizerStyle.vinyl) {
+      final sessionId = _player.androidAudioSessionId;
+      if (sessionId != null) {
+        visualizerService.start(sessionId);
+        visualizerService.setPlaybackActive(_player.playing);
+        return;
+      }
+    }
+    visualizerService.stop();
   }
 
   Future<void> seekTo(double progress) async {
@@ -312,6 +388,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   void toggleShuffle() {
     _isShuffleOn = !_isShuffleOn;
     if (!_isShuffleOn) _shuffleHistory.clear();
+    _syncHandlerPlaybackOptions();
     notifyListeners();
     _saveSession();
   }
@@ -322,8 +399,20 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
       AppRepeatState.all => AppRepeatState.one,
       AppRepeatState.one => AppRepeatState.off,
     };
+    _syncHandlerPlaybackOptions();
     notifyListeners();
     _saveSession();
+  }
+
+  void _syncHandlerPlaybackOptions() {
+    _handler.updatePlaybackOptions(
+      shuffleEnabled: _isShuffleOn,
+      repeatMode: switch (_repeatMode) {
+        AppRepeatState.one => AudioServiceRepeatMode.one,
+        AppRepeatState.all => AudioServiceRepeatMode.all,
+        AppRepeatState.off => AudioServiceRepeatMode.none,
+      },
+    );
   }
 
   void setSleepTimer(int minutes) {
@@ -430,6 +519,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     _currentIndex = restoredIndex >= 0 ? restoredIndex : 0;
     _isShuffleOn = map['isShuffleOn'] as bool? ?? false;
     _repeatMode = _repeatModeFromName(map['repeatMode'] as String?);
+    _syncHandlerPlaybackOptions();
     notifyListeners();
 
     final hasActiveSource = _player.audioSource != null ||
@@ -501,6 +591,31 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     return '$m:$s';
   }
 
+  /// Compara dos listas por contenido (ids), no por referencia.
+  static bool _listsEqual(List<SongModel> a, List<SongModel> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) return false;
+    }
+    return true;
+  }
+
+  // ── Visualizer Style Persistence ──────────────────────────────────────────
+  void _loadVisualizerStyle(SharedPreferences prefs) {
+    var saved = prefs.getString(_visualizerKey);
+    if (saved != null) {
+      if (saved == 'modern') saved = 'minimalist';
+      _animationStyle = VisualizerStyle.values.firstWhere(
+        (e) => e.name == saved,
+        orElse: () => VisualizerStyle.vinyl,
+      );
+    }
+  }
+
+  void _saveVisualizerStyle() {
+    _prefs?.setString(_visualizerKey, _animationStyle.name);
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -510,6 +625,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     positionNotifier.dispose();
     durationNotifier.dispose();
     sleepRemainingNotifier.dispose();
+    visualizerService.dispose();
     super.dispose();
   }
 }

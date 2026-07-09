@@ -12,6 +12,11 @@ class ACARMusicHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> Function()? onSkipToNext;
   Future<void> Function()? onSkipToPrevious;
+  Future<void> Function()? onToggleShuffle;
+  Future<void> Function()? onToggleRepeat;
+
+  bool _shuffleEnabled = false;
+  AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
 
   /// Suprime broadcasts al platform channel durante cambio de pista.
   /// Samsung mata apps que envían muchas actualizaciones de notificación seguidas.
@@ -95,8 +100,7 @@ class ACARMusicHandler extends BaseAudioHandler with SeekHandler {
     // content:// URI para artwork — Android lo usa en notificación de medios.
     // Solo si hay albumId válido; si no, null (evita crash por URI inválida).
     final Uri? artUri = (song.albumId != null && song.albumId != 0)
-        ? Uri.parse(
-            'content://media/external/audio/albumart/${song.albumId}')
+        ? Uri.parse('content://media/external/audio/albumart/${song.albumId}')
         : null;
     return MediaItem(
       id: song.id.toString(),
@@ -118,6 +122,15 @@ class ACARMusicHandler extends BaseAudioHandler with SeekHandler {
   /// Fuerza un broadcast del estado actual.
   void refreshPlaybackState() => _broadcastState();
 
+  void updatePlaybackOptions({
+    required bool shuffleEnabled,
+    required AudioServiceRepeatMode repeatMode,
+  }) {
+    _shuffleEnabled = shuffleEnabled;
+    _repeatMode = repeatMode;
+    _broadcastState();
+  }
+
   void _broadcastState({bool forceLoadingWhenIdle = false}) {
     // Mientras se cambia de pista, no enviar actualizaciones al sistema.
     if (suppressBroadcast) return;
@@ -130,7 +143,7 @@ class ACARMusicHandler extends BaseAudioHandler with SeekHandler {
         MediaAction.seekForward,
         MediaAction.seekBackward,
       },
-      androidCompactActionIndices: const [0, 1, 2],
+      androidCompactActionIndices: const [1, 2, 3],
       processingState:
           forceLoadingWhenIdle && state == AudioProcessingState.idle
               ? AudioProcessingState.loading
@@ -140,13 +153,37 @@ class ACARMusicHandler extends BaseAudioHandler with SeekHandler {
       bufferedPosition: _player.bufferedPosition,
       speed: _player.speed,
       queueIndex: _queueIndex,
+      shuffleMode: _shuffleEnabled
+          ? AudioServiceShuffleMode.all
+          : AudioServiceShuffleMode.none,
+      repeatMode: _repeatMode,
     ));
   }
 
   List<MediaControl> get _mediaControls => [
+        MediaControl.custom(
+          androidIcon: _shuffleEnabled
+              ? 'drawable/ic_notification_shuffle_on'
+              : 'drawable/ic_notification_shuffle',
+          label: _shuffleEnabled ? 'Mezcla activada' : 'Mezclar',
+          name: 'toggleShuffle',
+        ),
         MediaControl.skipToPrevious,
         _player.playing ? MediaControl.pause : MediaControl.play,
         MediaControl.skipToNext,
+        MediaControl.custom(
+          androidIcon: switch (_repeatMode) {
+            AudioServiceRepeatMode.one => 'drawable/ic_notification_repeat_one',
+            AudioServiceRepeatMode.all => 'drawable/ic_notification_repeat_on',
+            _ => 'drawable/ic_notification_repeat',
+          },
+          label: switch (_repeatMode) {
+            AudioServiceRepeatMode.one => 'Repetir pista',
+            AudioServiceRepeatMode.all => 'Repetir todo',
+            _ => 'Sin repeticion',
+          },
+          name: 'toggleRepeat',
+        ),
       ];
 
   AudioProcessingState get _audioProcessingState =>
@@ -179,6 +216,23 @@ class ACARMusicHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> skipToPrevious() async => await onSkipToPrevious?.call();
+
+  @override
+  Future<dynamic> customAction(
+    String name, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    switch (name) {
+      case 'toggleShuffle':
+        await onToggleShuffle?.call();
+        return null;
+      case 'toggleRepeat':
+        await onToggleRepeat?.call();
+        return null;
+      default:
+        return super.customAction(name, extras);
+    }
+  }
 
   @override
   Future<void> stop() async {

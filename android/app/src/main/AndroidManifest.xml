@@ -21,6 +21,9 @@
     <!-- Sin esto Samsung puede matar el servicio de audio en segundo plano -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Visualizador de audio (ecualizador visual) — necesario para FFT -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application
         android:label="ACARMusic"
         android:name="${applicationName}"
