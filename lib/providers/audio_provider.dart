@@ -108,10 +108,10 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
         .listen((dur) => durationNotifier.value = dur ?? Duration.zero);
 
     _player.playerStateStream.listen((state) {
-      // Durante cambio de pista, ignorar TODOS los eventos del stream.
-      // Previene: loop infinito de _onTrackCompleted, saves concurrentes,
-      // y notifyListeners con estado inconsistente.
-      if (_changingTrack) return;
+      // Durante cambio de pista o toggle en vuelo, ignorar eventos del stream.
+      // Previene: revertir el estado optimista del botón play/pause por
+      // eventos intermedios (buffering, etc.) emitidos durante el await.
+      if (_changingTrack || _toggleInFlight) return;
 
       final wasPlaying = _isPlaying;
       _isPlaying = state.playing;
@@ -257,12 +257,41 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> togglePlayPause() async {
     if (_toggleInFlight) return;
     _toggleInFlight = true;
+
+    // Actualización optimista: la UI refleja el nuevo estado de inmediato.
+    // El stream listener ignora eventos mientras _toggleInFlight=true,
+    // evitando que eventos intermedios (buffering) reviertan el icono.
+    final wasPlaying = _player.playing;
+    _isPlaying = !wasPlaying;
+    notifyListeners();
+
     try {
-      _player.playing ? await _handler.pause() : await _handler.play();
-      await _saveSession();
+      if (wasPlaying) {
+        // pause() en just_audio completa rápido — actualiza _playingSubject
+        // sincrónicamente antes del platform call. Seguro usar await.
+        await _player.pause();
+        _handler.refreshPlaybackState();
+      } else {
+        // CRÍTICO: play() en just_audio devuelve un Future que NO completa
+        // hasta que el audio termina o se pausa. Hacer await bloquea
+        // _toggleInFlight indefinidamente → el botón pause nunca responde.
+        // Solución: disparar sin await — just_audio actualiza _playingSubject
+        // sincrónicamente antes del platform call de todas formas.
+        _player.play(); // fire-and-forget intencional
+        _handler.refreshPlaybackState();
+      }
       _manageVisualizer();
+    } catch (e) {
+      // Revertir en caso de error
+      _isPlaying = wasPlaying;
+      debugPrint('togglePlayPause error: $e');
     } finally {
+      // Sincronizar con el estado real del player y liberar el guard.
+      // Después de esto el stream listener vuelve a procesar eventos.
+      _isPlaying = _player.playing;
       _toggleInFlight = false;
+      notifyListeners();
+      _saveSession(); // fire-and-forget — no bloquear la UI
     }
   }
 
