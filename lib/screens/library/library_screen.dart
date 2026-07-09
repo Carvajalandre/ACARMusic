@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_theme.dart';
-import '../providers/audio_provider.dart';
-import '../providers/library_provider.dart';
-import '../widgets/track_tile.dart';
+import '../../theme/app_theme.dart';
+import '../../audio/audio_provider.dart';
+import '../../library/library_provider.dart';
+import '../../library/widgets/track_tile.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -20,7 +20,6 @@ class _LibraryScreenState extends State<LibraryScreen>
   Map<String, int> _letterIndex = {};
   static const double _tileHeight = 72.0;
 
-  // ── Sidebar alfabético: overlay de letra grande ───────────────────────────
   String? _activeLetter;
   bool    _showLetterOverlay = false;
   final GlobalKey _sidebarKey = GlobalKey();
@@ -66,10 +65,8 @@ class _LibraryScreenState extends State<LibraryScreen>
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      // ✅ NestedScrollView: header colapsa al hacer scroll, tabs quedan fijos
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          // ── SliverAppBar (título + botón Mezclar) ──────────────────
           SliverAppBar(
             backgroundColor: Colors.black,
             pinned: true,
@@ -77,7 +74,6 @@ class _LibraryScreenState extends State<LibraryScreen>
             expandedHeight: 70,
             titleSpacing: 0,
             automaticallyImplyLeading: false,
-            // Cuando está colapsado solo muestra título pequeño
             title: AnimatedOpacity(
               opacity: innerBoxIsScrolled ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 150),
@@ -87,7 +83,6 @@ class _LibraryScreenState extends State<LibraryScreen>
                       fontSize: 18,
                       fontWeight: FontWeight.w800)),
             ),
-            // Cuando está expandido muestra el título grande
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: EdgeInsets.zero,
               background: SafeArea(
@@ -141,7 +136,6 @@ class _LibraryScreenState extends State<LibraryScreen>
               ),
             ),
           ),
-          // ── TabBar fija — siempre visible ──────────────────────────
           SliverPersistentHeader(
             pinned: true,
             delegate: _StickyTabBarDelegate(
@@ -188,7 +182,6 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  // ── Determina la letra bajo el dedo usando posición global ───────────────
   void _updateLetterFromGlobal(Offset globalPos) {
     final box =
         _sidebarKey.currentContext?.findRenderObject() as RenderBox?;
@@ -207,7 +200,6 @@ class _LibraryScreenState extends State<LibraryScreen>
     }
   }
 
-  // ── Tab pistas con sidebar alfabético y overlay de letra grande ───────────
   Widget _buildTracksTab(LibraryProvider library) {
     final songs = library.songs;
     if (songs.isEmpty) {
@@ -248,10 +240,6 @@ class _LibraryScreenState extends State<LibraryScreen>
                 },
               ),
             ),
-
-            // ── Sidebar: Listener en vez de GestureDetector ────────────
-            // Listener usa eventos de puntero (nivel bajo) que NO pasan
-            // por la arena de gestos → NestedScrollView no los roba.
             Listener(
               onPointerDown: (e) {
                 setState(() => _showLetterOverlay = true);
@@ -278,7 +266,7 @@ class _LibraryScreenState extends State<LibraryScreen>
               },
               child: Container(
                 key: _sidebarKey,
-                width: 28,  // área táctil más amplia
+                width: 28,
                 color: Colors.transparent,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Column(
@@ -305,8 +293,6 @@ class _LibraryScreenState extends State<LibraryScreen>
             ),
           ],
         ),
-
-        // ── Overlay: letra grande centrada ────────────────────────────
         if (_showLetterOverlay && _activeLetter != null)
           Positioned.fill(
             child: IgnorePointer(
@@ -609,7 +595,6 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 }
 
-// ─── Delegate para mantener el TabBar pegado debajo del SliverAppBar ──────────
 class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
   final TabBar tabBar;
   const _StickyTabBarDelegate({required this.tabBar});

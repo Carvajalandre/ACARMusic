@@ -3,8 +3,9 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
-import '../providers/audio_provider.dart';
-import '../screens/player_screen.dart';
+import '../audio/audio_provider.dart';
+import '../screens/player/player_screen.dart';
+import 'buttons/pressable_scale.dart';
 
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
@@ -93,14 +94,14 @@ class MiniPlayer extends StatelessWidget {
                     ),
                   ),
                   // Controles — solo escuchan isPlaying
-                  _PressableIconButton(
+                  PressableIconButton(
                     onPressed: audio.skipPrevious,
                     icon: const Icon(Icons.skip_previous_rounded,
                         color: AppTheme.onSurface),
                   ),
                   Selector<AudioProvider, bool>(
                     selector: (_, a) => a.isPlaying,
-                    builder: (_, isPlaying, __) => _PressableScale(
+                    builder: (_, isPlaying, __) => PressableScale(
                       onTap: audio.togglePlayPause,
                       child: Container(
                         padding: const EdgeInsets.all(8),
@@ -130,7 +131,7 @@ class MiniPlayer extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _PressableIconButton(
+                  PressableIconButton(
                     onPressed: audio.skipNext,
                     icon: const Icon(Icons.skip_next_rounded,
                         color: AppTheme.onSurface),
@@ -186,62 +187,4 @@ class _ProgressBar extends StatelessWidget {
   }
 }
 
-class _PressableIconButton extends StatelessWidget {
-  final VoidCallback onPressed;
-  final Widget icon;
 
-  const _PressableIconButton({
-    required this.onPressed,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _PressableScale(
-      onTap: onPressed,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: icon,
-      ),
-    );
-  }
-}
-
-class _PressableScale extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-
-  const _PressableScale({
-    required this.child,
-    this.onTap,
-  });
-
-  @override
-  State<_PressableScale> createState() => _PressableScaleState();
-}
-
-class _PressableScaleState extends State<_PressableScale> {
-  bool _pressed = false;
-
-  void _setPressed(bool value) {
-    if (_pressed == value) return;
-    setState(() => _pressed = value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _setPressed(true),
-      onTapUp: (_) => _setPressed(false),
-      onTapCancel: () => _setPressed(false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.9 : 1,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: widget.child,
-      ),
-    );
-  }
-}

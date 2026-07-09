@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
-/// Disco de vinilo giratorio.
-/// Implementa WidgetsBindingObserver para pausar la animación
-/// cuando la app está en segundo plano → ahorra batería.
 class VinylRecord extends StatefulWidget {
   final bool isPlaying;
   final int? albumId;
@@ -44,11 +41,9 @@ class _VinylRecordState extends State<VinylRecord>
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden) {
       _appInForeground = false;
-      // Para la animación: el audio sigue sonando, solo se detiene el render
       if (_ctrl.isAnimating) _ctrl.stop();
     } else if (state == AppLifecycleState.resumed) {
       _appInForeground = true;
-      // Reanuda la animación solo si sigue reproduciendo
       if (widget.isPlaying && !_ctrl.isAnimating) _ctrl.repeat();
     }
   }
@@ -56,7 +51,7 @@ class _VinylRecordState extends State<VinylRecord>
   @override
   void didUpdateWidget(VinylRecord old) {
     super.didUpdateWidget(old);
-    if (!_appInForeground) return; // No arranca animación en background
+    if (!_appInForeground) return;
     if (widget.isPlaying && !_ctrl.isAnimating) {
       _ctrl.repeat();
     } else if (!widget.isPlaying && _ctrl.isAnimating) {
@@ -74,7 +69,7 @@ class _VinylRecordState extends State<VinylRecord>
   @override
   Widget build(BuildContext context) {
     final s          = widget.size;
-    final centerSize = s * 0.346; // ~90px cuando s=260
+    final centerSize = s * 0.346;
 
     return AnimatedBuilder(
       animation: _ctrl,
@@ -95,7 +90,6 @@ class _VinylRecordState extends State<VinylRecord>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // ── Halo / glow exterior ──────────────────────────────────────
           Container(
             width: s + 20, height: s + 20,
             decoration: BoxDecoration(
@@ -105,8 +99,6 @@ class _VinylRecordState extends State<VinylRecord>
                 blurRadius: 50, spreadRadius: 10)],
             ),
           ),
-
-          // ── Cuerpo del vinilo con surcos ──────────────────────────────
           Container(
             width: s, height: s,
             decoration: const BoxDecoration(
@@ -116,8 +108,6 @@ class _VinylRecordState extends State<VinylRecord>
             ),
             child: CustomPaint(painter: _GroovesPainter()),
           ),
-
-          // ── Imagen de portada (centro) ────────────────────────────────
           ClipOval(
             child: SizedBox(
               width: centerSize,
@@ -134,8 +124,6 @@ class _VinylRecordState extends State<VinylRecord>
                   : _defaultCenter(),
             ),
           ),
-
-          // ── Punto central del disco ───────────────────────────────────
           Container(
             width: 10, height: 10,
             decoration: BoxDecoration(
@@ -153,7 +141,6 @@ class _VinylRecordState extends State<VinylRecord>
             color: Colors.white54, size: 28));
 }
 
-// ─── Pintor de surcos concéntricos ────────────────────────────────────────────
 class _GroovesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {

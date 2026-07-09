@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../theme/app_theme.dart';
-import '../providers/audio_provider.dart';
-import '../providers/library_provider.dart';
-import 'library_screen.dart';
-import 'explore_screen.dart';
-import 'playlists_screen.dart';
-import 'settings_screen.dart';
-import '../widgets/mini_player.dart';
-import '../widgets/permission_screen.dart';
+import '../../theme/app_theme.dart';
+import '../../audio/audio_provider.dart';
+import '../../library/library_provider.dart';
+import '../library/library_screen.dart';
+import '../explore/explore_screen.dart';
+import '../library/playlists_screen.dart';
+import '../settings/settings_screen.dart';
+import '../../widgets/mini_player.dart';
+import 'widgets/permission_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -44,12 +44,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // VERTICAL
-  // ═══════════════════════════════════════════════════════════════════════════
   Widget _buildPortrait() {
     return PopScope(
-      // false → interceptamos back para mover al background, no finalizar Activity
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (!didPop) await SystemNavigator.pop();
@@ -63,7 +59,6 @@ class _HomeScreenState extends State<HomeScreen> {
               selector: (_, a) => a.currentSong?.id,
               builder: (context, songId, _) {
                 if (songId == null) return const SizedBox.shrink();
-                // bottom: 0 → MiniPlayer se ancla justo encima del nav bar
                 return const Positioned(
                   left: 0,
                   right: 0,
@@ -79,17 +74,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HORIZONTAL — navegación lateral
-  // ═══════════════════════════════════════════════════════════════════════════
   Widget _buildLandscape() {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: Row(
         children: [
-          // Rail de navegación izquierdo
           _buildSideNav(),
-          // Contenido principal
           Expanded(
             child: Stack(
               children: [

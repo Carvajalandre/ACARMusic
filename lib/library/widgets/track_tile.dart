@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_theme.dart';
+import '../../theme/app_theme.dart';
 
 class TrackTile extends StatelessWidget {
   final SongModel song;
   final bool isPlaying;
   final VoidCallback onTap;
   final VoidCallback? onMore;
-  // Permite pasar un widget personalizado en lugar del ícono de "más" (para drag handles)
   final Widget? trailingOverride;
 
   const TrackTile({

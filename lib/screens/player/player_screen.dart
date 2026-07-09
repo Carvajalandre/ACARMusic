@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:provider/provider.dart';
-import '../theme/app_theme.dart';
-import '../providers/audio_provider.dart';
-import '../providers/library_provider.dart';
-import '../models/animation_style.dart';
-import '../widgets/visualizer_factory.dart';
-import '../widgets/tap_scale.dart';
+import '../../theme/app_theme.dart';
+import '../../audio/audio_provider.dart';
+import '../../library/library_provider.dart';
+import '../../visualizers/animation_style.dart';
+import '../../visualizers/visualizer_factory.dart';
+import '../../widgets/buttons/tap_scale.dart';
+import '../../widgets/buttons/glow_button.dart';
+import '../../audio/settings/sleep_timer_sheet.dart';
+import '../../audio/settings/animation_style_sheet.dart';
+import '../../audio/settings/equalizer_dialog.dart';
 
 class PlayerScreen extends StatelessWidget {
   const PlayerScreen({super.key});
@@ -593,7 +596,7 @@ class _PlayerContentState extends State<_PlayerContent>
               TapScale(
                 onTap: audio.toggleShuffle,
                 tooltip: 'Mezclar',
-                child: _GlowButton(
+                child: GlowButton(
                   active: shuffleOn,
                   activeColor: AppTheme.primary,
                   glowColor: AppTheme.primary,
@@ -676,7 +679,7 @@ class _PlayerContentState extends State<_PlayerContent>
                     : repeatMode == AppRepeatState.all
                         ? 'Repetir todo'
                         : 'Sin repetición',
-                child: _GlowButton(
+                child: GlowButton(
                   active: repeatActive,
                   activeColor: repeatMode == AppRepeatState.one
                       ? Colors.amberAccent
@@ -865,129 +868,19 @@ class _PlayerContentState extends State<_PlayerContent>
     );
   }
 
-  static const _eqChannel = MethodChannel('com.acar.music/equalizer');
-
   Future<void> _openSystemEqualizer(BuildContext context) async {
     final audio = context.read<AudioProvider>();
-    final sessionId = audio.androidAudioSessionId ?? 0;
-    try {
-      final opened = await _eqChannel.invokeMethod<bool>('openEqualizer', {
-        'audioSessionId': sessionId,
-      });
-      if (opened == false && context.mounted) {
-        _showNoEqDialog(context);
-      }
-    } on PlatformException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: ${e.message}'),
-          backgroundColor: Colors.redAccent,
-        ));
-      }
-    }
-  }
-
-  void _showNoEqDialog(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 36,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(
-                color: AppTheme.outline,
-                borderRadius: BorderRadius.circular(2)),
-          ),
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-                color: AppTheme.primary.withAlpha(30), shape: BoxShape.circle),
-            child: const Icon(Icons.graphic_eq_rounded,
-                color: AppTheme.primary, size: 32),
-          ),
-          const SizedBox(height: 16),
-          const Text('Calidad y efectos de sonido',
-              style: TextStyle(
-                  color: AppTheme.onSurface,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800)),
-          const SizedBox(height: 12),
-          const Text(
-            'Tu dispositivo no tiene una aplicación de efectos de sonido del sistema instalada (Dolby Atmos, Mi Sound Enhancer, etc.).\n\nPuedes instalar una app de ecualizador desde la Play Store para mejorar el sonido.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                color: AppTheme.onSurfaceVariant, fontSize: 13, height: 1.5),
-          ),
-          const SizedBox(height: 20),
-        ]),
-      ),
-    );
+    await EqualizerDialog.openSoundEffects(context, audio);
   }
 
   void _showAnimationStyleSheet(BuildContext context) {
     final audio = context.read<AudioProvider>();
-    final current = audio.animationStyle;
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                    color: AppTheme.outline,
-                    borderRadius: BorderRadius.circular(2)),
-              ),
-              const Text('Animaciones',
-                  style: TextStyle(
-                      color: AppTheme.onSurface,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800)),
-              const SizedBox(height: 16),
-              ...VisualizerStyle.values.map((style) {
-                final selected = style == current;
-                final isDefault = style == VisualizerStyle.vinyl;
-                return ListTile(
-                  leading: Text(style.iconLabel,
-                      style: const TextStyle(fontSize: 24)),
-                  title: Text(
-                    '${style.displayName}${isDefault ? ' (Por defecto)' : ''}',
-                    style: TextStyle(
-                      color: AppTheme.onSurface,
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    ),
-                  ),
-                  trailing: selected
-                      ? const Icon(Icons.check_rounded, color: AppTheme.primary)
-                      : null,
-                  onTap: () {
-                    audio.animationStyle = style;
-                    Navigator.pop(ctx);
-                  },
-                );
-              }),
-              const SizedBox(height: 12),
-              const Text(
-                  'Los cambios se aplican al instante en el reproductor.',
-                  style: TextStyle(
-                      color: AppTheme.onSurfaceVariant, fontSize: 12)),
-            ]),
-      ),
+      builder: (_) => AnimationStyleSheet(audio: audio),
     );
   }
 
@@ -1022,111 +915,14 @@ class _PlayerContentState extends State<_PlayerContent>
     );
   }
 
-  // ── Temporizador de sueño — idéntico al de settings_screen ───────────────
   void _showSleepTimerSheet(BuildContext context, AudioProvider audio) {
-    final presets = [15, 30, 45, 60, 90, 120];
-    final customCtrl = TextEditingController();
-
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 4),
-              decoration: BoxDecoration(
-                  color: AppTheme.outline,
-                  borderRadius: BorderRadius.circular(2)),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Text('Temporizador de sueño',
-                  style: TextStyle(
-                      color: AppTheme.onSurface,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800)),
-            ),
-            // Desactivado
-            ListTile(
-              title: const Text('Desactivado',
-                  style: TextStyle(
-                      color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
-              trailing: audio.sleepTimerMinutes == 0
-                  ? const Icon(Icons.check_rounded, color: AppTheme.primary)
-                  : null,
-              onTap: () {
-                audio.cancelSleepTimer();
-                Navigator.pop(ctx);
-              },
-            ),
-            // Presets
-            ...presets.map((min) => ListTile(
-                  title: Text('$min minutos',
-                      style: const TextStyle(
-                          color: AppTheme.onSurface,
-                          fontWeight: FontWeight.w600)),
-                  trailing: audio.sleepTimerMinutes == min
-                      ? const Icon(Icons.check_rounded, color: AppTheme.primary)
-                      : null,
-                  onTap: () {
-                    audio.setSleepTimer(min);
-                    Navigator.pop(ctx);
-                  },
-                )),
-            // Tiempo personalizado
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: customCtrl,
-                      keyboardType: TextInputType.number,
-                      style: const TextStyle(color: AppTheme.onSurface),
-                      decoration: const InputDecoration(
-                        hintText: 'Minutos personalizados',
-                        hintStyle: TextStyle(
-                            color: AppTheme.onSurfaceVariant, fontSize: 13),
-                        enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: AppTheme.outline)),
-                        focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: AppTheme.primary)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      final min = int.tryParse(customCtrl.text.trim());
-                      if (min != null && min > 0) {
-                        audio.setSleepTimer(min);
-                        Navigator.pop(ctx);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      foregroundColor: AppTheme.onPrimary,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('OK',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
+      builder: (_) => SleepTimerSheet(audio: audio),
     );
   }
 
@@ -1193,14 +989,12 @@ class _PlayerContentState extends State<_PlayerContent>
   }
 }
 
-// ─── Botón de acción (Like / Lista / Cola) ────────────────────────────────────
 class _ActionBtn extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
   final double size;
   final VoidCallback onTap;
-
   const _ActionBtn({
     required this.icon,
     required this.label,
@@ -1208,59 +1002,22 @@ class _ActionBtn extends StatelessWidget {
     required this.size,
     required this.onTap,
   });
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: color, size: size),
-          const SizedBox(height: 5),
-          Text(label,
-              style: TextStyle(
-                  color: color,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8)),
-        ]),
-      );
-}
-
-// ─── Botón con glow animado cuando está activo ────────────────────────────────
-/// Muestra un halo de luz debajo del ícono cuando [active] es true.
-/// Usa AnimatedContainer para transición suave encendido/apagado.
-class _GlowButton extends StatelessWidget {
-  final bool active;
-  final Color activeColor;
-  final Color glowColor;
-  final Widget child;
-
-  const _GlowButton({
-    required this.active,
-    required this.activeColor,
-    required this.glowColor,
-    required this.child,
-  });
-
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: active ? activeColor.withAlpha(28) : Colors.transparent,
-        boxShadow: active
-            ? [
-                BoxShadow(
-                  color: glowColor.withAlpha(90),
-                  blurRadius: 14,
-                  spreadRadius: 1,
-                )
-              ]
-            : [],
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: size),
+          const SizedBox(height: 4),
+          Text(label,
+              style: TextStyle(
+                  color: color, fontSize: 9, fontWeight: FontWeight.w600)),
+        ],
       ),
-      child: child,
     );
   }
 }
+
+

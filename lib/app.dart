@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
-import 'screens/home_screen.dart';
+import 'screens/home/home_screen.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
