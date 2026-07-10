@@ -121,9 +121,13 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.detached) {
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive) {
       _saveDebounceTimer?.cancel();
       _saveSession();
+      visualizerService.stop();
+    } else if (state == AppLifecycleState.resumed) {
+      _manageVisualizer();
     }
   }
 
