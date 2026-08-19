@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../models/animation_style.dart';
-import '../theme/app_theme.dart';
-import '../providers/audio_provider.dart';
+import '../../visualizers/animation_style.dart';
+import '../../theme/app_theme.dart';
+import '../../audio/audio_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -83,7 +83,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: AppTheme.onSurface, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
       );
 
-  // ── Sleep Timer con countdown ─────────────────────────────────────────────
   Widget _buildSleepTimerTile(BuildContext context, AudioProvider audio) {
     return ValueListenableBuilder<Duration>(
       valueListenable: audio.sleepRemainingNotifier,
@@ -98,51 +97,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Container(
             margin: const EdgeInsets.only(bottom: 4),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: AppTheme.surface, borderRadius: BorderRadius.circular(14)),
-            child: Row(
-              children: [
-                Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? AppTheme.primary.withAlpha(40)
-                        : AppTheme.surfaceContainerHigh,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.timer_rounded,
-                      color: isActive ? AppTheme.primary : AppTheme.primary, size: 20),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Temporizador de sueño',
-                        style: GoogleFonts.manrope(
-                            color: AppTheme.onSurface, fontSize: 14, fontWeight: FontWeight.w600)),
-                    Text(subtitle.toUpperCase(),
-                        style: GoogleFonts.manrope(
-                            color: isActive ? AppTheme.primary : AppTheme.onSurfaceVariant,
-                            fontSize: 10, letterSpacing: 0.5, fontWeight: FontWeight.w600)),
-                  ]),
-                ),
-                if (isActive)
-                  GestureDetector(
-                    onTap: () => audio.cancelSleepTimer(),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withAlpha(30),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Text('Cancelar',
-                          style: GoogleFonts.manrope(
-                              color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w700)),
-                    ),
-                  )
-                else
-                  const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceVariant),
-              ],
-            ),
+            decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(14)),
+            child: Row(children: [
+              Container(
+                width: 40, height: 40,
+                decoration: const BoxDecoration(color: AppTheme.surfaceContainerHigh, shape: BoxShape.circle),
+                child: Icon(
+                  isActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
+                  color: isActive ? AppTheme.primary : AppTheme.onSurfaceVariant, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Temporizador de sueño',
+                      style: GoogleFonts.manrope(
+                          color: AppTheme.onSurface, fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(subtitle!.toUpperCase(),
+                      style: GoogleFonts.manrope(
+                          color: isActive ? AppTheme.primary : AppTheme.onSurfaceVariant,
+                          fontSize: 10, letterSpacing: 0.5, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceVariant),
+            ]),
           ),
         );
       },
@@ -157,37 +134,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 36, height: 4, margin: const EdgeInsets.only(top: 12, bottom: 4),
-                decoration: BoxDecoration(color: AppTheme.outline, borderRadius: BorderRadius.circular(2))),
+            Container(
+              width: 36, height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              decoration: BoxDecoration(
+                  color: AppTheme.outline, borderRadius: BorderRadius.circular(2)),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Text('Temporizador de sueño',
                   style: GoogleFonts.manrope(
                       color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800)),
             ),
-            // Opción: apagado
             ListTile(
               title: Text('Desactivado',
-                  style: GoogleFonts.manrope(color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
+                  style: GoogleFonts.manrope(
+                      color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
               trailing: audio.sleepTimerMinutes == 0
-                  ? const Icon(Icons.check_rounded, color: AppTheme.primary) : null,
-              onTap: () { audio.cancelSleepTimer(); Navigator.pop(ctx); },
+                  ? const Icon(Icons.check_rounded, color: AppTheme.primary)
+                  : null,
+              onTap: () {
+                audio.cancelSleepTimer();
+                Navigator.pop(ctx);
+              },
             ),
-            // Presets
             ...presets.map((min) => ListTile(
-              title: Text('$min minutos',
-                  style: GoogleFonts.manrope(color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
-              trailing: audio.sleepTimerMinutes == min
-                  ? const Icon(Icons.check_rounded, color: AppTheme.primary) : null,
-              onTap: () { audio.setSleepTimer(min); Navigator.pop(ctx); },
-            )),
-            // Tiempo personalizado
+                  title: Text('$min minutos',
+                      style: GoogleFonts.manrope(
+                          color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
+                  trailing: audio.sleepTimerMinutes == min
+                      ? const Icon(Icons.check_rounded, color: AppTheme.primary)
+                      : null,
+                  onTap: () {
+                    audio.setSleepTimer(min);
+                    Navigator.pop(ctx);
+                  },
+                )),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
@@ -293,7 +282,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
 
-  // ── Animaciones — selector de estilo de visualizador ─────────────────────
   void _showVisualizerStyleSheet(BuildContext context, AudioProvider audio) {
     final current = audio.animationStyle;
     showModalBottomSheet(
@@ -353,7 +341,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'audioSessionId': sessionId,
       });
       if (opened == false && context.mounted) {
-        // El dispositivo no tiene ecualizador de sistema → mostrar aviso
         _showNoEqDialog(context);
       }
     } on PlatformException catch (e) {
@@ -392,8 +379,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 16),
           Text('Calidad y efectos de sonido',
               style: GoogleFonts.manrope(
-                  color: AppTheme.onSurface,
-                  fontSize: 18, fontWeight: FontWeight.w800)),
+                  color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
           Text(
             'Tu dispositivo no tiene una aplicación de efectos de sonido del sistema instalada (Dolby Atmos, Mi Sound Enhancer, etc.).\n\nPuedes instalar una app de ecualizador desde la Play Store para mejorar el sonido.',

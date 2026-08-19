@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_theme.dart';
-import '../providers/audio_provider.dart';
-import '../providers/library_provider.dart';
-import '../widgets/track_tile.dart';
+import '../../theme/app_theme.dart';
+import '../../audio/audio_provider.dart';
+import '../../library/library_provider.dart';
+import '../../library/widgets/track_tile.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -129,7 +129,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  // ── Recently Played — tarjetas cuadradas grandes y bien espaciadas ─────────
   Widget _buildRecentlyPlayed(LibraryProvider library, AudioProvider audio) {
     final recent = library.recentlyPlayed;
     if (recent.isEmpty) return const SizedBox.shrink();
@@ -146,7 +145,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   fontWeight: FontWeight.w800)),
         ),
         SizedBox(
-          // ✅ Altura = imagen cuadrada (160) + texto (40) = 200
           height: 200,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
@@ -157,12 +155,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
               return GestureDetector(
                 onTap: () => audio.playSong(song, recent, i),
                 child: Container(
-                  width: 148, // ✅ más ancho para no apretar
+                  width: 148,
                   margin: const EdgeInsets.only(right: 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ✅ Imagen cuadrada perfecta con aspect ratio 1:1
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
                         child: SizedBox(

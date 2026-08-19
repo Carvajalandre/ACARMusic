@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../models/animation_style.dart';
-import 'vinyl_record.dart';
-import 'bar_visualizer.dart';
-import 'radial_visualizer.dart';
-import 'minimalist_visualizer.dart';
+import 'animation_style.dart';
+import 'bar/bar_visualizer.dart';
+import 'radial/radial_visualizer.dart';
+import 'minimalist/minimalist_visualizer.dart';
+import 'vinyl/vinyl_record.dart';
 
 class VisualizerFactory extends StatefulWidget {
   final VisualizerStyle style;

@@ -37,15 +37,20 @@ class VisualizerService {
 
     if (nativeOk) {
       _nativeSub = _eventChannel.receiveBroadcastStream().listen(
-            (data) => _controller.add(
-              _playbackActive
-                  ? (data as List<dynamic>)
-                      .map((value) => (value as num).toDouble())
-                      .toList(growable: false)
-                  : _silenceFrame,
-            ),
-            onError: (_) => _startSimulated(),
+        (data) {
+          if (!_started || _controller.isClosed) return;
+          _controller.add(
+            _playbackActive
+                ? (data as List<dynamic>)
+                    .map((value) => (value as num).toDouble())
+                    .toList(growable: false)
+                : _silenceFrame,
           );
+        },
+        onError: (_) {
+          if (_started) _startSimulated();
+        },
+      );
     } else {
       _startSimulated();
     }
@@ -59,9 +64,9 @@ class VisualizerService {
     _silenceTimer = null;
 
     if (!active) {
-      _controller.add(_silenceFrame);
+      _safeAdd(_silenceFrame);
       _silenceTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-        if (!_started || _playbackActive) return;
+        if (!_started || _playbackActive || _controller.isClosed) return;
         _controller.add(_silenceFrame);
       });
     }
@@ -73,16 +78,34 @@ class VisualizerService {
     _started = false;
     _playbackActive = false;
     _activeSessionId = null;
-    _nativeSub?.cancel();
-    _nativeSub = null;
+    await _safeCancelNativeSub();
     _simulatedTimer?.cancel();
     _simulatedTimer = null;
     _silenceTimer?.cancel();
     _silenceTimer = null;
-    if (!_controller.isClosed) _controller.add(_silenceFrame);
+    _safeAdd(_silenceFrame);
     try {
       await _methodChannel.invokeMethod('stopVisualizer');
     } catch (_) {}
+  }
+
+  Future<void> _safeCancelNativeSub() async {
+    final subscription = _nativeSub;
+    _nativeSub = null;
+    if (subscription == null) return;
+    try {
+      // EventChannel.cancel is asynchronous. Some Android audio engines
+      // report MissingPluginException while the activity is being destroyed.
+      await subscription.cancel();
+    } catch (_) {
+      // The simulated visualizer remains available as a fallback.
+    }
+  }
+
+  void _safeAdd(List<double> data) {
+    if (!_controller.isClosed) {
+      _controller.add(data);
+    }
   }
 
   void _startSimulated() {
@@ -92,7 +115,7 @@ class VisualizerService {
 
     _simulatedTimer?.cancel();
     _simulatedTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
-      if (!_started) return;
+      if (!_started || _controller.isClosed) return;
       if (!_playbackActive) {
         _controller.add(_silenceFrame);
         return;
@@ -130,7 +153,17 @@ class VisualizerService {
   }
 
   void dispose() {
-    stop();
+    _started = false;
+    _playbackActive = false;
+    _activeSessionId = null;
+    unawaited(_safeCancelNativeSub());
+    _simulatedTimer?.cancel();
+    _simulatedTimer = null;
+    _silenceTimer?.cancel();
+    _silenceTimer = null;
     _controller.close();
+    try {
+      _methodChannel.invokeMethod('stopVisualizer');
+    } catch (_) {}
   }
 }

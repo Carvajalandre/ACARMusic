@@ -6,11 +6,11 @@ import 'package:flutter/gestures.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_theme.dart';
-import '../providers/audio_provider.dart';
-import '../providers/library_provider.dart';
-import '../widgets/track_tile.dart';
-import '../widgets/mini_player.dart';
+import '../../theme/app_theme.dart';
+import '../../audio/audio_provider.dart';
+import '../../library/library_provider.dart';
+import '../../library/widgets/track_tile.dart';
+import '../../widgets/mini_player.dart';
 
 class ReorderableCustomDelayDragStartListener extends ReorderableDragStartListener {
   const ReorderableCustomDelayDragStartListener({
@@ -28,14 +28,13 @@ class ReorderableCustomDelayDragStartListener extends ReorderableDragStartListen
   }
 }
 
-// ─── Modos de ordenación ──────────────────────────────────────────────────────
 enum _SortMode { custom, az, recentlyAdded }
 
 class SongListScreen extends StatefulWidget {
   final String title;
   final String? subtitle;
   final List<SongModel> songs;
-  final String? playlistId; // si es playlist editable (soporta reordenar)
+  final String? playlistId;
 
   const SongListScreen({
     super.key,
@@ -133,8 +132,6 @@ class _SongListScreenState extends State<SongListScreen> {
     }
   }
 
-  /// Sincroniza [_sorted] con los datos vivos del provider si cambiaron.
-  /// Se llama desde [build] (sin setState) y desde [_applySort] (con setState).
   void _syncSorted() {
     if (widget.playlistId == null) return;
     final liveSongs = context.read<LibraryProvider>().getSongsForPlaylist(widget.playlistId!);
@@ -170,7 +167,6 @@ class _SongListScreenState extends State<SongListScreen> {
     });
   }
 
-  // ─── Drag & drop para "orden propio" ──────────────────────────────────────
   void _onReorder(int oldIndex, int newIndex, LibraryProvider library) {
     if (widget.playlistId == null) return;
     setState(() {
@@ -178,7 +174,6 @@ class _SongListScreenState extends State<SongListScreen> {
       final song = _sorted.removeAt(oldIndex);
       _sorted.insert(newIndex, song);
     });
-    // Persistir nuevo orden
     library.reorderPlaylist(
         widget.playlistId!, _sorted.map((s) => s.id).toList());
   }
@@ -186,10 +181,8 @@ class _SongListScreenState extends State<SongListScreen> {
   @override
   Widget build(BuildContext context) {
     final isPlaylist = widget.playlistId != null;
-    // watch para reaccionar a cambios externos en la playlist
     if (isPlaylist) context.watch<LibraryProvider>();
 
-    // Sincronizar _sorted si cambian los elementos (adiciones/eliminaciones)
     _syncSorted();
 
     if (isPlaylist && _sortMode == _SortMode.az) {
@@ -203,7 +196,6 @@ class _SongListScreenState extends State<SongListScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      // ── MiniPlayer anclado en el fondo de esta pantalla ────────────────
       bottomNavigationBar: Selector<AudioProvider, int?>(
         selector: (_, a) => a.currentSong?.id,
         builder: (_, songId, __) {
@@ -216,7 +208,6 @@ class _SongListScreenState extends State<SongListScreen> {
           CustomScrollView(
             controller: _scrollController,
             slivers: [
-          // ── AppBar con portadas ──────────────────────────────────────
           SliverAppBar(
             backgroundColor: AppTheme.background,
             expandedHeight: 200,
@@ -250,12 +241,9 @@ class _SongListScreenState extends State<SongListScreen> {
                   icon: const Icon(Icons.play_circle_rounded,
                       color: AppTheme.primary, size: 30),
                 ),
-              // Menú de ordenación
               _buildSortMenu(isPlaylist),
             ],
           ),
-
-          // ── Barra: contador + modo de orden activo ───────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
@@ -265,7 +253,6 @@ class _SongListScreenState extends State<SongListScreen> {
                       style: GoogleFonts.manrope(
                           color: AppTheme.onSurfaceVariant, fontSize: 13)),
                   const Spacer(),
-                  // Chip del modo activo
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -287,8 +274,6 @@ class _SongListScreenState extends State<SongListScreen> {
               ),
             ),
           ),
-
-          // ── Lista / ReorderableList ───────────────────────────────────
           if (_sorted.isEmpty)
             SliverFillRemaining(
               child: Center(
@@ -304,7 +289,6 @@ class _SongListScreenState extends State<SongListScreen> {
                     ]),
               ),
             )
-          // Modo arrastrar (solo en playlists, solo en orden propio)
           else if (isPlaylist && _sortMode == _SortMode.custom)
             SliverPadding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -313,8 +297,6 @@ class _SongListScreenState extends State<SongListScreen> {
                 onReorder: (o, n) => _onReorder(o, n, context.read<LibraryProvider>()),
                 itemBuilder: (context, i) {
                   final song = _sorted[i];
-                  // key en Material (no en el listener) para que el scroll funcione
-                  // ReorderableDragStartListener SOLO en el ícono de handle
                   return ReorderableCustomDelayDragStartListener(
                     key: ValueKey(song.id),
                     index: i,
@@ -344,7 +326,6 @@ class _SongListScreenState extends State<SongListScreen> {
                 },
               ),
             )
-          // Lista normal (sin drag)
           else
             SliverList(
               delegate: SliverChildBuilderDelegate(
@@ -367,8 +348,6 @@ class _SongListScreenState extends State<SongListScreen> {
                 childCount: _sorted.length,
               ),
             ),
-
-          // Espacio final (MiniPlayer ya está en bottomNavigationBar)
           const SliverToBoxAdapter(child: SizedBox(height: 8)),
         ],
       ),
@@ -475,7 +454,6 @@ class _SongListScreenState extends State<SongListScreen> {
 );
 }
 
-  // ─── Menú de ordenación ──────────────────────────────────────────────────
   Widget _buildSortMenu(bool isPlaylist) {
     return PopupMenuButton<_SortMode>(
       icon: const Icon(Icons.sort_rounded, color: AppTheme.onSurface),
@@ -580,7 +558,6 @@ class _SongListScreenState extends State<SongListScreen> {
   }
 }
 
-// ─── Opción en el menú de sort ────────────────────────────────────────────────
 class _SortOption extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -607,7 +584,6 @@ class _SortOption extends StatelessWidget {
       );
 }
 
-// ─── Fondo del AppBar: grid de portadas ───────────────────────────────────────
 class _BackgroundArt extends StatelessWidget {
   final List<SongModel> songs;
   const _BackgroundArt({required this.songs});
@@ -651,7 +627,6 @@ class _BackgroundArt extends StatelessWidget {
               color: AppTheme.surfaceContainerLow,
               child: const Icon(Icons.queue_music_rounded,
                   size: 80, color: AppTheme.primary)),
-        // Degradado para legibilidad
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(

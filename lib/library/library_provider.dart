@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/custom_playlist.dart';
+import 'models/custom_playlist.dart';
 
 class LibraryProvider extends ChangeNotifier {
   final OnAudioQuery _audioQuery = OnAudioQuery();
@@ -94,7 +94,6 @@ class LibraryProvider extends ChangeNotifier {
             dur >= 10000;
       }).toList();
 
-      // ReciÃ©n aÃ±adidas (las 50 mÃ¡s nuevas por fecha de modificaciÃ³n)
       final byDate = [..._songs];
       byDate
           .sort((a, b) => (b.dateModified ?? 0).compareTo(a.dateModified ?? 0));
@@ -123,7 +122,6 @@ class LibraryProvider extends ChangeNotifier {
       _prefs = await SharedPreferences.getInstance();
       final prefs = _prefs!;
 
-      // Favoritos
       final favIds = prefs.getStringList(_favoritesKey) ?? [];
       _favorites.clear();
       for (final id in favIds) {
@@ -131,7 +129,6 @@ class LibraryProvider extends ChangeNotifier {
         if (song != null) _favorites.add(song);
       }
 
-      // Recientes
       final recentIds = prefs.getStringList(_recentlyKey) ?? [];
       _recentlyPlayed.clear();
       for (final id in recentIds) {
@@ -139,13 +136,11 @@ class LibraryProvider extends ChangeNotifier {
         if (song != null) _recentlyPlayed.add(song);
       }
 
-      // Playlists personalizadas
       final playlistsJson = prefs.getString(_playlistsKey);
       if (playlistsJson != null) {
         _playlists = CustomPlaylist.decodeList(playlistsJson);
       }
 
-      // Conteo de reproducciones
       final playCountsJson = prefs.getString(_playCountsKey);
       if (playCountsJson != null) {
         final map = jsonDecode(playCountsJson) as Map<String, dynamic>;
@@ -156,7 +151,6 @@ class LibraryProvider extends ChangeNotifier {
     }
   }
 
-  // â”€â”€ BÃºsqueda â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void search(String query) {
     _searchQuery = query.toLowerCase().trim();
     _filteredSongs = _searchQuery.isEmpty
@@ -176,7 +170,6 @@ class LibraryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // â”€â”€ Favoritos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void addToFavorites(SongModel song) {
     if (!_favorites.any((s) => s.id == song.id)) {
       _favorites.add(song);
@@ -199,7 +192,6 @@ class LibraryProvider extends ChangeNotifier {
         _favoritesKey, _favorites.map((s) => s.id.toString()).toList());
   }
 
-  // â”€â”€ Recientes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void addToRecentlyPlayed(SongModel song) {
     _recentlyPlayed.removeWhere((s) => s.id == song.id);
     _recentlyPlayed.insert(0, song);
@@ -216,11 +208,9 @@ class LibraryProvider extends ChangeNotifier {
         _recentlyKey, _recentlyPlayed.map((s) => s.id.toString()).toList());
   }
 
-  // â”€â”€ Conteo de reproducciones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void incrementPlayCount(int songId) {
     _playCounts[songId] = (_playCounts[songId] ?? 0) + 1;
     _savePlayCounts();
-    // No notifyListeners: es silencioso para no triggerar rebuilds frecuentes
   }
 
   Future<void> _savePlayCounts() async {
@@ -229,7 +219,6 @@ class LibraryProvider extends ChangeNotifier {
     await prefs.setString(_playCountsKey, jsonEncode(map));
   }
 
-  // â”€â”€ Playlists personalizadas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> createPlaylist(String name) async {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     _playlists.add(CustomPlaylist(id: id, name: name));
@@ -281,7 +270,6 @@ class LibraryProvider extends ChangeNotifier {
     }
   }
 
-  /// Guarda el nuevo orden de canciones en una playlist (drag & drop)
   void reorderPlaylist(String playlistId, List<int> newOrder) {
     final idx = _playlists.indexWhere((p) => p.id == playlistId);
     if (idx >= 0) {
@@ -294,7 +282,6 @@ class LibraryProvider extends ChangeNotifier {
   List<SongModel> getSongsForPlaylist(String playlistId) {
     final pl = _playlists.where((p) => p.id == playlistId).firstOrNull;
     if (pl == null) return [];
-    // Mapa para O(1) lookup â€” devuelve en el orden exacto de songIds (respeta drag & drop)
     final songMap = {for (final s in _songs) s.id: s};
     return pl.songIds.map((id) => songMap[id]).whereType<SongModel>().toList();
   }
@@ -307,7 +294,6 @@ class LibraryProvider extends ChangeNotifier {
     await prefs.setString(_playlistsKey, CustomPlaylist.encodeList(_playlists));
   }
 
-  // â”€â”€ Por Ã¡lbum / artista â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<SongModel> getSongsByAlbum(int albumId) =>
       _songs.where((s) => s.albumId == albumId).toList();
 

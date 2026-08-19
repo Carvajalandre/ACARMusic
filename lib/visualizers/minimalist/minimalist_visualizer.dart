@@ -17,7 +17,7 @@ class MinimalistVisualizer extends StatelessWidget {
   Widget build(BuildContext context) {
     final outerPadding = (size * 0.035).clamp(8.0, 14.0);
     final artSize = size - outerPadding * 2;
-    final radius = (artSize * 0.075).clamp(14.0, 28.0);
+    final radius = (artSize * 0.065).clamp(10.0, 22.0);
     return SizedBox(
       width: size,
       height: size,

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_theme.dart';
-import '../providers/library_provider.dart';
-import '../models/custom_playlist.dart';
+import '../../theme/app_theme.dart';
+import '../../library/library_provider.dart';
+import '../../library/models/custom_playlist.dart';
 import 'song_list_screen.dart';
 
 class PlaylistsScreen extends StatelessWidget {

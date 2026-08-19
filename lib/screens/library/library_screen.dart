@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_theme.dart';
-import '../providers/audio_provider.dart';
-import '../providers/library_provider.dart';
-import '../widgets/track_tile.dart';
+import '../../theme/app_theme.dart';
+import '../../audio/audio_provider.dart';
+import '../../library/library_provider.dart';
+import '../../library/widgets/track_tile.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -18,11 +18,10 @@ class _LibraryScreenState extends State<LibraryScreen>
   late TabController _tabController;
   final ScrollController _tracksScrollCtrl = ScrollController();
   Map<String, int> _letterIndex = {};
-  static const double _tileHeight = 72.0;
+  static const double _tileHeight = 86.0;
 
-  // ── Sidebar alfabético: overlay de letra grande ───────────────────────────
   String? _activeLetter;
-  bool    _showLetterOverlay = false;
+  bool _showLetterOverlay = false;
   final GlobalKey _sidebarKey = GlobalKey();
 
   @override
@@ -66,10 +65,8 @@ class _LibraryScreenState extends State<LibraryScreen>
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      // ✅ NestedScrollView: header colapsa al hacer scroll, tabs quedan fijos
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          // ── SliverAppBar (título + botón Mezclar) ──────────────────
           SliverAppBar(
             backgroundColor: Colors.black,
             pinned: true,
@@ -77,7 +74,6 @@ class _LibraryScreenState extends State<LibraryScreen>
             expandedHeight: 70,
             titleSpacing: 0,
             automaticallyImplyLeading: false,
-            // Cuando está colapsado solo muestra título pequeño
             title: AnimatedOpacity(
               opacity: innerBoxIsScrolled ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 150),
@@ -87,7 +83,6 @@ class _LibraryScreenState extends State<LibraryScreen>
                       fontSize: 18,
                       fontWeight: FontWeight.w800)),
             ),
-            // Cuando está expandido muestra el título grande
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: EdgeInsets.zero,
               background: SafeArea(
@@ -141,7 +136,6 @@ class _LibraryScreenState extends State<LibraryScreen>
               ),
             ),
           ),
-          // ── TabBar fija — siempre visible ──────────────────────────
           SliverPersistentHeader(
             pinned: true,
             delegate: _StickyTabBarDelegate(
@@ -188,18 +182,17 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  // ── Determina la letra bajo el dedo usando posición global ───────────────
   void _updateLetterFromGlobal(Offset globalPos) {
-    final box =
-        _sidebarKey.currentContext?.findRenderObject() as RenderBox?;
+    final box = _sidebarKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
     final localY = box.globalToLocal(globalPos).dy.clamp(0.0, box.size.height);
     final letters = [
       '#',
       ...List.generate(26, (i) => String.fromCharCode(65 + i))
     ];
-    final idx =
-        (localY / box.size.height * letters.length).clamp(0, letters.length - 1).toInt();
+    final idx = (localY / box.size.height * letters.length)
+        .clamp(0, letters.length - 1)
+        .toInt();
     final letter = letters[idx];
     if (_activeLetter != letter) {
       setState(() => _activeLetter = letter);
@@ -207,7 +200,6 @@ class _LibraryScreenState extends State<LibraryScreen>
     }
   }
 
-  // ── Tab pistas con sidebar alfabético y overlay de letra grande ───────────
   Widget _buildTracksTab(LibraryProvider library) {
     final songs = library.songs;
     if (songs.isEmpty) {
@@ -220,126 +212,125 @@ class _LibraryScreenState extends State<LibraryScreen>
       ...List.generate(26, (i) => String.fromCharCode(65 + i))
     ];
 
-    return Stack(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                controller: _tracksScrollCtrl,
-                padding: const EdgeInsets.fromLTRB(16, 8, 0, 180),
-                itemCount: songs.length,
-                itemExtent: _tileHeight,
-                itemBuilder: (context, i) {
-                  final song = songs[i];
-                  return Selector<AudioProvider, bool>(
-                    selector: (_, a) => a.currentSong?.id == song.id,
-                    builder: (context, isPlaying, _) => TrackTile(
-                      song: song,
-                      isPlaying: isPlaying,
-                      onTap: () {
-                        library.addToRecentlyPlayed(song);
-                        library.incrementPlayCount(song.id);
-                        context.read<AudioProvider>().playSong(song, songs, i);
-                      },
-                      onMore: () => _showTrackOptions(context, song, library),
-                    ),
-                  );
-                },
-              ),
-            ),
-
-            // ── Sidebar: Listener en vez de GestureDetector ────────────
-            // Listener usa eventos de puntero (nivel bajo) que NO pasan
-            // por la arena de gestos → NestedScrollView no los roba.
-            Listener(
-              onPointerDown: (e) {
-                setState(() => _showLetterOverlay = true);
-                _updateLetterFromGlobal(e.position);
-              },
-              onPointerMove: (e) {
-                _updateLetterFromGlobal(e.position);
-              },
-              onPointerUp: (_) {
-                Future.delayed(const Duration(milliseconds: 500), () {
-                  if (mounted) {
-                    setState(() {
-                      _showLetterOverlay = false;
-                      _activeLetter = null;
-                    });
-                  }
-                });
-              },
-              onPointerCancel: (_) {
-                setState(() {
-                  _showLetterOverlay = false;
-                  _activeLetter = null;
-                });
-              },
-              child: Container(
-                key: _sidebarKey,
-                width: 28,  // área táctil más amplia
-                color: Colors.transparent,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: letters.map((letter) {
-                    final enabled = _letterIndex.containsKey(letter);
-                    final isActive = _activeLetter == letter;
-                    return AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 80),
-                      style: TextStyle(
-                        fontSize: isActive ? 12 : 9,
-                        fontWeight: FontWeight.w700,
-                        color: isActive
-                            ? AppTheme.tertiary
-                            : enabled
-                                ? AppTheme.primary
-                                : AppTheme.outline.withAlpha(60),
+    return Container(
+      color: AppTheme.surfaceContainerLow,
+      child: Stack(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  controller: _tracksScrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 0, 180),
+                  itemCount: songs.length,
+                  itemExtent: _tileHeight,
+                  itemBuilder: (context, i) {
+                    final song = songs[i];
+                    return Selector<AudioProvider, bool>(
+                      selector: (_, a) => a.currentSong?.id == song.id,
+                      builder: (context, isPlaying, _) => TrackTile(
+                        song: song,
+                        isPlaying: isPlaying,
+                        onTap: () {
+                          library.addToRecentlyPlayed(song);
+                          library.incrementPlayCount(song.id);
+                          context
+                              .read<AudioProvider>()
+                              .playSong(song, songs, i);
+                        },
+                        onMore: () => _showTrackOptions(context, song, library),
                       ),
-                      child: Text(letter, textAlign: TextAlign.center),
                     );
-                  }).toList(),
+                  },
                 ),
               ),
-            ),
-          ],
-        ),
-
-        // ── Overlay: letra grande centrada ────────────────────────────
-        if (_showLetterOverlay && _activeLetter != null)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Center(
-                child: AnimatedScale(
-                  scale: _showLetterOverlay ? 1.0 : 0.6,
-                  duration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOutBack,
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceContainerHigh.withAlpha(220),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: AppTheme.primary.withAlpha(60), width: 1),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(100),
-                          blurRadius: 24,
-                        )
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        _activeLetter!,
+              Listener(
+                onPointerDown: (e) {
+                  setState(() => _showLetterOverlay = true);
+                  _updateLetterFromGlobal(e.position);
+                },
+                onPointerMove: (e) {
+                  _updateLetterFromGlobal(e.position);
+                },
+                onPointerUp: (_) {
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    if (mounted) {
+                      setState(() {
+                        _showLetterOverlay = false;
+                        _activeLetter = null;
+                      });
+                    }
+                  });
+                },
+                onPointerCancel: (_) {
+                  setState(() {
+                    _showLetterOverlay = false;
+                    _activeLetter = null;
+                  });
+                },
+                child: Container(
+                  key: _sidebarKey,
+                  width: 28,
+                  color: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: letters.map((letter) {
+                      final enabled = _letterIndex.containsKey(letter);
+                      final isActive = _activeLetter == letter;
+                      return AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 80),
                         style: TextStyle(
-                          fontSize: 52,
-                          fontWeight: FontWeight.w900,
-                          color: _letterIndex.containsKey(_activeLetter)
+                          fontSize: isActive ? 12 : 9,
+                          fontWeight: FontWeight.w700,
+                          color: isActive
                               ? AppTheme.tertiary
-                              : AppTheme.outline,
-                          height: 1,
+                              : enabled
+                                  ? AppTheme.primary
+                                  : AppTheme.outline.withAlpha(60),
+                        ),
+                        child: Text(letter, textAlign: TextAlign.center),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_showLetterOverlay && _activeLetter != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: AnimatedScale(
+                    scale: _showLetterOverlay ? 1.0 : 0.6,
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOutBack,
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceContainerHigh.withAlpha(220),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: AppTheme.primary.withAlpha(60), width: 1),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(100),
+                            blurRadius: 24,
+                          )
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          _activeLetter!,
+                          style: TextStyle(
+                            fontSize: 52,
+                            fontWeight: FontWeight.w900,
+                            color: _letterIndex.containsKey(_activeLetter)
+                                ? AppTheme.tertiary
+                                : AppTheme.outline,
+                            height: 1,
+                          ),
                         ),
                       ),
                     ),
@@ -347,8 +338,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -419,35 +410,68 @@ class _LibraryScreenState extends State<LibraryScreen>
       return _buildEmpty('No se encontraron artistas', Icons.person_rounded);
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 180),
+      padding: const EdgeInsets.fromLTRB(28, 12, 28, 180),
       itemCount: library.artists.length,
       itemBuilder: (context, i) {
         final artist = library.artists[i];
-        return ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          leading: Container(
-            width: 52,
-            height: 52,
-            decoration: const BoxDecoration(
-                color: AppTheme.surfaceContainerHigh, shape: BoxShape.circle),
-            child: const Icon(Icons.person_rounded,
-                color: AppTheme.onSurfaceVariant),
+        final artistSongs = library.getSongsByArtist(artist.id);
+        final coverSong = artistSongs.isNotEmpty ? artistSongs.first : null;
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 3),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withAlpha(12)),
           ),
-          title: Text(artist.artist ?? 'Artista desconocido',
-              style: GoogleFonts.manrope(
-                  color: AppTheme.onSurface,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700)),
-          subtitle: Text('${artist.numberOfTracks ?? 0} canciones',
-              style: GoogleFonts.manrope(
-                  color: AppTheme.onSurfaceVariant, fontSize: 12)),
-          onTap: () {
-            final songs = library.getSongsByArtist(artist.id);
-            if (songs.isNotEmpty) {
-              context.read<AudioProvider>().playSong(songs.first, songs, 0);
-            }
-          },
+          child: ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 52,
+                height: 52,
+                child: coverSong == null
+                    ? Container(
+                        color: AppTheme.surfaceContainerHigh,
+                        child: const Icon(Icons.person_rounded,
+                            color: AppTheme.onSurfaceVariant),
+                      )
+                    : QueryArtworkWidget(
+                        id: coverSong.id,
+                        type: ArtworkType.AUDIO,
+                        artworkBorder: BorderRadius.circular(10),
+                        artworkFit: BoxFit.cover,
+                        artworkWidth: 52,
+                        artworkHeight: 52,
+                        keepOldArtwork: true,
+                        nullArtworkWidget: Container(
+                          color: AppTheme.surfaceContainerHigh,
+                          child: const Icon(Icons.person_rounded,
+                              color: AppTheme.onSurfaceVariant),
+                        ),
+                      ),
+              ),
+            ),
+            title: Text(artist.artist ?? 'Artista desconocido',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.manrope(
+                    color: AppTheme.onSurface,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700)),
+            subtitle: Text(
+                '${artist.numberOfAlbums ?? 0} álbumes | ${artist.numberOfTracks ?? 0} pistas',
+                style: GoogleFonts.manrope(
+                    color: AppTheme.onSurfaceVariant, fontSize: 12)),
+            onTap: () {
+              if (artistSongs.isNotEmpty) {
+                context
+                    .read<AudioProvider>()
+                    .playSong(artistSongs.first, artistSongs, 0);
+              }
+            },
+          ),
         );
       },
     );
@@ -609,7 +633,6 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 }
 
-// ─── Delegate para mantener el TabBar pegado debajo del SliverAppBar ──────────
 class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
   final TabBar tabBar;
   const _StickyTabBarDelegate({required this.tabBar});

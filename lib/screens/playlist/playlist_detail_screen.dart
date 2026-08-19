@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_theme.dart';
-import '../providers/audio_provider.dart';
-import '../providers/library_provider.dart';
-import '../widgets/track_tile.dart';
+import '../../theme/app_theme.dart';
+import '../../audio/audio_provider.dart';
+import '../../library/library_provider.dart';
+import '../../library/widgets/track_tile.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final int playlistId;
@@ -27,19 +27,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Cache the future so it is only loaded once, and not re-evaluated on every rebuild
-    _songsFuture = context.read<LibraryProvider>().getSongsFromPlaylist(widget.playlistId);
+    _songsFuture =
+        context.read<LibraryProvider>().getSongsFromPlaylist(widget.playlistId);
   }
 
   @override
   Widget build(BuildContext context) {
-    // context.read is used for methods/actions, and we do not use context.watch at the top level
-    // to prevent full rebuilds of the list when audio player state updates.
     final library = context.read<LibraryProvider>();
     final audio = context.read<AudioProvider>();
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: AppTheme.surfaceContainerLow,
       body: FutureBuilder<List<SongModel>>(
         future: _songsFuture,
         builder: (context, snapshot) {
@@ -72,7 +70,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         end: Alignment.bottomCenter,
                         colors: [
                           AppTheme.primary.withValues(alpha: 0.3),
-                          AppTheme.background,
+                          AppTheme.surfaceContainerLow,
                         ],
                       ),
                     ),
@@ -150,7 +148,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                             library.addToRecentlyPlayed(song);
                             audio.playSong(song, songs, i);
                           },
-                          onMore: () => _showTrackOptions(context, song, library),
+                          onMore: () =>
+                              _showTrackOptions(context, song, library),
                         ),
                       );
                     },
@@ -245,8 +244,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              // Note: on_audio_query doesn't have a direct removeFromPlaylist method
-              // This would require a different approach
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                     content:

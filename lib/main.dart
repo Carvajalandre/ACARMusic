@@ -10,8 +10,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'audio/audio_handler.dart';
-import 'providers/audio_provider.dart';
-import 'providers/library_provider.dart';
+import 'audio/audio_provider.dart';
+import 'library/library_provider.dart';
 
 bool _audioServiceOk = false;
 String _audioServiceError = '';
