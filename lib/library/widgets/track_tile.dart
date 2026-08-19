@@ -1,48 +1,72 @@
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:palette_generator/palette_generator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 
-class TrackTile extends StatelessWidget {
+class TrackTile extends StatefulWidget {
   final SongModel song;
   final bool isPlaying;
   final VoidCallback onTap;
   final VoidCallback? onMore;
   final Widget? trailingOverride;
 
-  const TrackTile({
-    super.key,
-    required this.song,
-    required this.isPlaying,
-    required this.onTap,
-    this.onMore,
-    this.trailingOverride,
-  });
+  const TrackTile(
+      {super.key,
+      required this.song,
+      required this.isPlaying,
+      required this.onTap,
+      this.onMore,
+      this.trailingOverride});
+
+  @override
+  State<TrackTile> createState() => _TrackTileState();
+}
+
+class _TrackTileState extends State<TrackTile> {
+  Color _accent = AppTheme.primary;
+  int? _lastSongId;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      onTap: onTap,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      tileColor: isPlaying ? AppTheme.surfaceContainerLow : Colors.transparent,
-      leading: SizedBox(
-        width: 52,
-        height: 52,
-        child: Stack(
-          children: [
+    if (widget.isPlaying && _lastSongId != widget.song.id) {
+      _lastSongId = widget.song.id;
+      _loadAccent(widget.song);
+    }
+    final activeColor = _accentForText(_accent);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      margin: EdgeInsets.zero,
+      decoration: BoxDecoration(
+        color: widget.isPlaying
+            ? _accent.withAlpha(42)
+            : AppTheme.surfaceContainerLow,
+        border: Border(
+          top: BorderSide(color: Colors.white.withAlpha(42)),
+          bottom: BorderSide(color: Colors.white.withAlpha(42)),
+        ),
+      ),
+      child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        onTap: widget.onTap,
+        leading: SizedBox(
+          width: 64,
+          height: 64,
+          child: Stack(children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               child: RepaintBoundary(
                 child: SizedBox(
-                  width: 52,
-                  height: 52,
+                  width: 64,
+                  height: 64,
                   child: QueryArtworkWidget(
-                    id: song.id,
+                    id: widget.song.id,
                     type: ArtworkType.AUDIO,
+                    artworkBorder: BorderRadius.circular(12),
                     artworkFit: BoxFit.cover,
-                    artworkWidth: 52,
-                    artworkHeight: 52,
+                    artworkWidth: 64,
+                    artworkHeight: 64,
                     keepOldArtwork: true,
                     nullArtworkWidget: Container(
                       color: AppTheme.surfaceContainerHigh,
@@ -54,43 +78,70 @@ class TrackTile extends StatelessWidget {
                 ),
               ),
             ),
-            if (isPlaying)
+            if (widget.isPlaying)
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.black.withAlpha(128),
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                    color: _accent.withAlpha(155),
+                    borderRadius: BorderRadius.circular(12)),
                 child: const Center(
-                  child: Icon(Icons.equalizer_rounded,
-                      color: AppTheme.tertiary, size: 20),
-                ),
+                    child: Icon(Icons.equalizer_rounded,
+                        color: Colors.white, size: 20)),
               ),
-          ],
+          ]),
         ),
+        title: Text(widget.song.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.manrope(
+                color: widget.isPlaying ? activeColor : AppTheme.onSurface,
+                fontSize: 17,
+                fontWeight: FontWeight.w700)),
+        subtitle: Text(widget.song.artist ?? 'Artista desconocido',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.manrope(
+                color: widget.isPlaying
+                    ? activeColor.withAlpha(190)
+                    : AppTheme.onSurfaceVariant,
+                fontSize: 14)),
+        trailing: widget.trailingOverride ??
+            IconButton(
+                icon: const Icon(Icons.more_horiz_rounded,
+                    color: AppTheme.onSurfaceVariant),
+                onPressed: widget.onMore),
       ),
-      title: Text(
-        song.title ?? 'Unknown',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: GoogleFonts.manrope(
-          color: isPlaying ? AppTheme.tertiary : AppTheme.onSurface,
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      subtitle: Text(
-        song.artist ?? 'Artista desconocido',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style:
-            GoogleFonts.manrope(color: AppTheme.onSurfaceVariant, fontSize: 12),
-      ),
-      trailing: trailingOverride ??
-          IconButton(
-            icon: const Icon(Icons.more_horiz_rounded,
-                color: AppTheme.onSurfaceVariant),
-            onPressed: onMore,
-          ),
     );
+  }
+
+  Future<void> _loadAccent(SongModel song) async {
+    try {
+      final art = await OnAudioQuery().queryArtwork(song.id, ArtworkType.AUDIO,
+          format: ArtworkFormat.JPEG, size: 120);
+      var result = _fallbackColor(song);
+      if (art != null && art.isNotEmpty) {
+        final palette = await PaletteGenerator.fromImageProvider(
+            MemoryImage(art),
+            size: const Size(120, 120),
+            maximumColorCount: 8);
+        result = palette.vibrantColor?.color ??
+            palette.dominantColor?.color ??
+            result;
+      }
+      if (mounted && _lastSongId == song.id) setState(() => _accent = result);
+    } catch (_) {
+      if (mounted && _lastSongId == song.id) {
+        setState(() => _accent = _fallbackColor(song));
+      }
+    }
+  }
+
+  Color _fallbackColor(SongModel song) {
+    final hue = ((song.albumId ?? song.id) * 47) % 360;
+    return HSLColor.fromAHSL(1, hue.toDouble(), 0.68, 0.48).toColor();
+  }
+
+  Color _accentForText(Color color) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.lightness < 0.62 ? hsl.withLightness(0.72).toColor() : color;
   }
 }

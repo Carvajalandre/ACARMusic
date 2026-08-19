@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:palette_generator/palette_generator.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
@@ -7,14 +8,26 @@ import '../audio/audio_provider.dart';
 import '../screens/player/player_screen.dart';
 import 'buttons/pressable_scale.dart';
 
-class MiniPlayer extends StatelessWidget {
+class MiniPlayer extends StatefulWidget {
   const MiniPlayer({super.key});
+
+  @override
+  State<MiniPlayer> createState() => _MiniPlayerState();
+}
+
+class _MiniPlayerState extends State<MiniPlayer> {
+  Color _accent = AppTheme.primary;
+  int? _lastSongId;
 
   @override
   Widget build(BuildContext context) {
     final audio = context.watch<AudioProvider>();
     final song = audio.currentSong;
     if (song == null) return const SizedBox.shrink();
+    if (_lastSongId != song.id) {
+      _lastSongId = song.id;
+      _loadAccent(song);
+    }
 
     return GestureDetector(
       onTap: () => Navigator.of(context).push(
@@ -28,12 +41,14 @@ class MiniPlayer extends StatelessWidget {
           ),
         ),
       ),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        margin: const EdgeInsets.fromLTRB(8, 0, 8, 0),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceContainerHigh.withAlpha(230),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withAlpha(13)),
+          color: Color.lerp(AppTheme.surfaceContainerHigh, _accent, 0.58)!
+              .withAlpha(242),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: _accent.withAlpha(100)),
           boxShadow: [
             BoxShadow(
                 color: Colors.black.withAlpha(128),
@@ -63,7 +78,7 @@ class MiniPlayer extends StatelessWidget {
                           artworkHeight: 48,
                           keepOldArtwork: true,
                           nullArtworkWidget: Container(
-                            color: AppTheme.surfaceContainerHigh,
+                            color: Colors.black.withAlpha(70),
                             child: const Icon(Icons.music_note_rounded,
                                 color: AppTheme.onSurfaceVariant),
                           ),
@@ -77,18 +92,18 @@ class MiniPlayer extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(song.title ?? 'Unknown',
+                        Text(song.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.manrope(
-                                color: AppTheme.onSurface,
+                                color: Colors.white,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700)),
                         Text(song.artist ?? '',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.manrope(
-                                color: AppTheme.onSurfaceVariant,
+                                color: Colors.white.withAlpha(190),
                                 fontSize: 11)),
                       ],
                     ),
@@ -97,7 +112,7 @@ class MiniPlayer extends StatelessWidget {
                   PressableIconButton(
                     onPressed: audio.skipPrevious,
                     icon: const Icon(Icons.skip_previous_rounded,
-                        color: AppTheme.onSurface),
+                        color: Colors.white),
                   ),
                   Selector<AudioProvider, bool>(
                     selector: (_, a) => a.isPlaying,
@@ -106,7 +121,7 @@ class MiniPlayer extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: const BoxDecoration(
-                            color: AppTheme.tertiary, shape: BoxShape.circle),
+                            color: Colors.white, shape: BoxShape.circle),
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 130),
                           reverseDuration: const Duration(milliseconds: 80),
@@ -126,7 +141,7 @@ class MiniPlayer extends StatelessWidget {
                                   ? Icons.pause_rounded
                                   : Icons.play_arrow_rounded,
                               key: ValueKey(isPlaying),
-                              color: AppTheme.onTertiary),
+                              color: _accent),
                         ),
                       ),
                     ),
@@ -134,7 +149,7 @@ class MiniPlayer extends StatelessWidget {
                   PressableIconButton(
                     onPressed: audio.skipNext,
                     icon: const Icon(Icons.skip_next_rounded,
-                        color: AppTheme.onSurface),
+                        color: Colors.white),
                   ),
                 ],
               ),
@@ -142,18 +157,46 @@ class MiniPlayer extends StatelessWidget {
             // Barra de progreso — usa ValueListenableBuilder, NO Consumer
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: _ProgressBar(audio: audio),
+              child: _ProgressBar(audio: audio, color: _accent),
             ),
           ],
         ),
       ),
     );
   }
+
+  Future<void> _loadAccent(SongModel song) async {
+    try {
+      final art = await OnAudioQuery().queryArtwork(song.id, ArtworkType.AUDIO,
+          format: ArtworkFormat.JPEG, size: 160);
+      var result = _fallbackColor(song);
+      if (art != null && art.isNotEmpty) {
+        final palette = await PaletteGenerator.fromImageProvider(
+            MemoryImage(art),
+            size: const Size(160, 160),
+            maximumColorCount: 8);
+        result = palette.vibrantColor?.color ??
+            palette.dominantColor?.color ??
+            result;
+      }
+      if (mounted && _lastSongId == song.id) setState(() => _accent = result);
+    } catch (_) {
+      if (mounted && _lastSongId == song.id) {
+        setState(() => _accent = _fallbackColor(song));
+      }
+    }
+  }
+
+  Color _fallbackColor(SongModel song) {
+    final hue = ((song.albumId ?? song.id) * 47) % 360;
+    return HSLColor.fromAHSL(1, hue.toDouble(), 0.68, 0.42).toColor();
+  }
 }
 
 class _ProgressBar extends StatelessWidget {
   final AudioProvider audio;
-  const _ProgressBar({required this.audio});
+  final Color color;
+  const _ProgressBar({required this.audio, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -176,7 +219,7 @@ class _ProgressBar extends StatelessWidget {
             builder: (_, c) => Container(
               width: c.maxWidth * progress,
               decoration: BoxDecoration(
-                color: AppTheme.tertiary,
+                color: color,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -186,5 +229,3 @@ class _ProgressBar extends StatelessWidget {
     );
   }
 }
-
-

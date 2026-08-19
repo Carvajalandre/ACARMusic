@@ -27,7 +27,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _songsFuture = context.read<LibraryProvider>().getSongsFromPlaylist(widget.playlistId);
+    _songsFuture =
+        context.read<LibraryProvider>().getSongsFromPlaylist(widget.playlistId);
   }
 
   @override
@@ -36,7 +37,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     final audio = context.read<AudioProvider>();
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: AppTheme.surfaceContainerLow,
       body: FutureBuilder<List<SongModel>>(
         future: _songsFuture,
         builder: (context, snapshot) {
@@ -69,7 +70,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         end: Alignment.bottomCenter,
                         colors: [
                           AppTheme.primary.withValues(alpha: 0.3),
-                          AppTheme.background,
+                          AppTheme.surfaceContainerLow,
                         ],
                       ),
                     ),
@@ -147,7 +148,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                             library.addToRecentlyPlayed(song);
                             audio.playSong(song, songs, i);
                           },
-                          onMore: () => _showTrackOptions(context, song, library),
+                          onMore: () =>
+                              _showTrackOptions(context, song, library),
                         ),
                       );
                     },

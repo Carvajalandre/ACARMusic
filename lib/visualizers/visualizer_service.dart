@@ -37,20 +37,20 @@ class VisualizerService {
 
     if (nativeOk) {
       _nativeSub = _eventChannel.receiveBroadcastStream().listen(
-            (data) {
-              if (!_started || _controller.isClosed) return;
-              _controller.add(
-                _playbackActive
-                    ? (data as List<dynamic>)
-                        .map((value) => (value as num).toDouble())
-                        .toList(growable: false)
-                    : _silenceFrame,
-              );
-            },
-            onError: (_) {
-              if (_started) _startSimulated();
-            },
+        (data) {
+          if (!_started || _controller.isClosed) return;
+          _controller.add(
+            _playbackActive
+                ? (data as List<dynamic>)
+                    .map((value) => (value as num).toDouble())
+                    .toList(growable: false)
+                : _silenceFrame,
           );
+        },
+        onError: (_) {
+          if (_started) _startSimulated();
+        },
+      );
     } else {
       _startSimulated();
     }
@@ -78,7 +78,7 @@ class VisualizerService {
     _started = false;
     _playbackActive = false;
     _activeSessionId = null;
-    _safeCancelNativeSub();
+    await _safeCancelNativeSub();
     _simulatedTimer?.cancel();
     _simulatedTimer = null;
     _silenceTimer?.cancel();
@@ -89,14 +89,16 @@ class VisualizerService {
     } catch (_) {}
   }
 
-  void _safeCancelNativeSub() {
-    if (_nativeSub == null) return;
+  Future<void> _safeCancelNativeSub() async {
+    final subscription = _nativeSub;
+    _nativeSub = null;
+    if (subscription == null) return;
     try {
-      _nativeSub!.cancel();
+      // EventChannel.cancel is asynchronous. Some Android audio engines
+      // report MissingPluginException while the activity is being destroyed.
+      await subscription.cancel();
     } catch (_) {
-      // Ignorar: el stream nativo pudo haber sido invalidado
-    } finally {
-      _nativeSub = null;
+      // The simulated visualizer remains available as a fallback.
     }
   }
 
@@ -154,7 +156,7 @@ class VisualizerService {
     _started = false;
     _playbackActive = false;
     _activeSessionId = null;
-    _safeCancelNativeSub();
+    unawaited(_safeCancelNativeSub());
     _simulatedTimer?.cancel();
     _simulatedTimer = null;
     _silenceTimer?.cancel();
