@@ -130,6 +130,8 @@ class VisualizerPlugin(
     fun destroy() {
         stopVisualizer()
         methodChannel.setMethodCallHandler(null)
-        eventChannel.setStreamHandler(null)
+        // Keep the EventChannel handler registered until Flutter disposes the
+        // engine. Removing it here makes a Dart subscription cancellation race
+        // with activity teardown and can surface MissingPluginException.
     }
 }

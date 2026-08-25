@@ -43,8 +43,9 @@ class MinimalistVisualizer extends StatelessWidget {
                       id: albumId!,
                       type: ArtworkType.ALBUM,
                       artworkFit: BoxFit.contain,
-                      artworkWidth: artSize * 2,
-                      artworkHeight: artSize * 2,
+                      artworkWidth: artSize * 0.75,
+                      artworkHeight: artSize * 0.75,
+                      artworkQuality: FilterQuality.high,
                       keepOldArtwork: true,
                       nullArtworkWidget: _defaultArt(artSize),
                     )

@@ -73,10 +73,13 @@ class _TrackTileState extends State<TrackTile> {
                     child: QueryArtworkWidget(
                       id: widget.song.id,
                       type: ArtworkType.AUDIO,
+                      size: 256,
+                      quality: 90,
                       artworkBorder: BorderRadius.circular(_size(12)),
                       artworkFit: BoxFit.cover,
                       artworkWidth: _size(64),
                       artworkHeight: _size(64),
+                      artworkQuality: FilterQuality.high,
                       keepOldArtwork: true,
                       nullArtworkWidget: Container(
                         color: AppTheme.surfaceContainerHigh,

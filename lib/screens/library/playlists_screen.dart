@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
@@ -193,8 +194,25 @@ class PlaylistsScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                     color: AppTheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.playlist_play_rounded,
-                    color: AppTheme.primary),
+                child: songs.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: QueryArtworkWidget(
+                          id: songs.first.id,
+                          type: ArtworkType.AUDIO,
+                          artworkFit: BoxFit.cover,
+                          artworkWidth: 256,
+                          artworkHeight: 256,
+                          artworkQuality: FilterQuality.high,
+                          keepOldArtwork: true,
+                          nullArtworkWidget: const Icon(
+                            Icons.playlist_play_rounded,
+                            color: AppTheme.primary,
+                          ),
+                        ),
+                      )
+                    : const Icon(Icons.playlist_play_rounded,
+                        color: AppTheme.primary),
               ),
               title: Text(pl.name,
                   style: GoogleFonts.manrope(
@@ -252,8 +270,8 @@ class PlaylistsScreen extends StatelessWidget {
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancelar',
-                  style: GoogleFonts.manrope(
-                      color: AppTheme.onSurfaceVariant))),
+                  style:
+                      GoogleFonts.manrope(color: AppTheme.onSurfaceVariant))),
           TextButton(
             onPressed: () {
               if (ctrl.text.trim().isNotEmpty) {
@@ -348,8 +366,8 @@ class PlaylistsScreen extends StatelessWidget {
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancelar',
-                  style: GoogleFonts.manrope(
-                      color: AppTheme.onSurfaceVariant))),
+                  style:
+                      GoogleFonts.manrope(color: AppTheme.onSurfaceVariant))),
           TextButton(
             onPressed: () {
               if (ctrl.text.trim().isNotEmpty) {
@@ -401,8 +419,7 @@ class _TopCard extends StatelessWidget {
             Positioned(
                 right: -8,
                 bottom: -12,
-                child: Icon(icon,
-                    color: Colors.white.withAlpha(18), size: 70)),
+                child: Icon(icon, color: Colors.white.withAlpha(18), size: 70)),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,

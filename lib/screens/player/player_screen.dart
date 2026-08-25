@@ -469,9 +469,12 @@ class _PlayerContentState extends State<_PlayerContent>
                       child: QueryArtworkWidget(
                         id: song.id,
                         type: ArtworkType.AUDIO,
+                        size: 256,
+                        quality: 90,
                         artworkFit: BoxFit.cover,
                         artworkWidth: 38,
                         artworkHeight: 38,
+                        artworkQuality: FilterQuality.high,
                         keepOldArtwork: true,
                         nullArtworkWidget: Container(
                             color: AppTheme.surfaceContainerHigh,
@@ -1019,5 +1022,3 @@ class _ActionBtn extends StatelessWidget {
     );
   }
 }
-
-

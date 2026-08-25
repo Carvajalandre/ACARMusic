@@ -73,9 +73,12 @@ class _MiniPlayerState extends State<MiniPlayer> {
                         child: QueryArtworkWidget(
                           id: song.id,
                           type: ArtworkType.AUDIO,
+                          size: 256,
+                          quality: 90,
                           artworkFit: BoxFit.cover,
                           artworkWidth: 48,
                           artworkHeight: 48,
+                          artworkQuality: FilterQuality.high,
                           keepOldArtwork: true,
                           nullArtworkWidget: Container(
                             color: Colors.black.withAlpha(70),

@@ -626,7 +626,12 @@ class _BackgroundArt extends StatelessWidget {
             child: QueryArtworkWidget(
               id: items[0].id,
               type: ArtworkType.AUDIO,
+              size: 512,
+              quality: 90,
               artworkFit: BoxFit.cover,
+              artworkWidth: 512,
+              artworkHeight: 512,
+              artworkQuality: FilterQuality.high,
               keepOldArtwork: true,
               nullArtworkWidget:
                   Container(color: AppTheme.surfaceContainerHigh),
@@ -641,7 +646,12 @@ class _BackgroundArt extends StatelessWidget {
                       child: QueryArtworkWidget(
                         id: s.id,
                         type: ArtworkType.AUDIO,
+                        size: 256,
+                        quality: 90,
                         artworkFit: BoxFit.cover,
+                        artworkWidth: 256,
+                        artworkHeight: 256,
+                        artworkQuality: FilterQuality.high,
                         keepOldArtwork: true,
                         nullArtworkWidget:
                             Container(color: AppTheme.surfaceContainerHigh),
