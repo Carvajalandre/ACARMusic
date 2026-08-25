@@ -18,7 +18,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   late TabController _tabController;
   final ScrollController _tracksScrollCtrl = ScrollController();
   Map<String, int> _letterIndex = {};
-  static const double _tileHeight = 86.0;
+  static const double _tileHeight = TrackTile.itemExtent;
 
   String? _activeLetter;
   bool _showLetterOverlay = false;

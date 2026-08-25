@@ -12,7 +12,8 @@ import '../../library/library_provider.dart';
 import '../../library/widgets/track_tile.dart';
 import '../../widgets/mini_player.dart';
 
-class ReorderableCustomDelayDragStartListener extends ReorderableDragStartListener {
+class ReorderableCustomDelayDragStartListener
+    extends ReorderableDragStartListener {
   const ReorderableCustomDelayDragStartListener({
     super.key,
     required super.child,
@@ -59,7 +60,7 @@ class _SongListScreenState extends State<SongListScreen> {
   String? _activeLetter;
   bool _showLetterOverlay = false;
   final GlobalKey _sidebarKey = GlobalKey();
-  static const double _tileHeight = 72.0;
+  static const double _tileHeight = TrackTile.itemExtent;
   static const double _kExpandedHeader = 200.0;
   static const double _kHeaderInfoHeight = 40.0;
 
@@ -71,9 +72,8 @@ class _SongListScreenState extends State<SongListScreen> {
     if (widget.playlistId != null) {
       final provider = context.read<LibraryProvider>();
       final modeStr = provider.getPlaylistSortMode(widget.playlistId!);
-      _sortMode = _SortMode.values.firstWhere(
-          (e) => e.name == modeStr,
-          orElse: () => _SortMode.custom);
+      _sortMode = _SortMode.values
+          .firstWhere((e) => e.name == modeStr, orElse: () => _SortMode.custom);
       _applySort();
     }
   }
@@ -107,7 +107,8 @@ class _SongListScreenState extends State<SongListScreen> {
     final idx = _letterIndex[letter];
     if (idx == null) return;
     final collapsedOffset = _kExpandedHeader - kToolbarHeight;
-    final targetOffset = collapsedOffset + _kHeaderInfoHeight + (idx * _tileHeight);
+    final targetOffset =
+        collapsedOffset + _kHeaderInfoHeight + (idx * _tileHeight);
     _scrollController.animateTo(
       targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
       duration: const Duration(milliseconds: 250),
@@ -123,8 +124,9 @@ class _SongListScreenState extends State<SongListScreen> {
       '#',
       ...List.generate(26, (i) => String.fromCharCode(65 + i))
     ];
-    final idx =
-        (localY / box.size.height * letters.length).clamp(0, letters.length - 1).toInt();
+    final idx = (localY / box.size.height * letters.length)
+        .clamp(0, letters.length - 1)
+        .toInt();
     final letter = letters[idx];
     if (_activeLetter != letter) {
       setState(() => _activeLetter = letter);
@@ -134,7 +136,8 @@ class _SongListScreenState extends State<SongListScreen> {
 
   void _syncSorted() {
     if (widget.playlistId == null) return;
-    final liveSongs = context.read<LibraryProvider>().getSongsForPlaylist(widget.playlistId!);
+    final liveSongs =
+        context.read<LibraryProvider>().getSongsForPlaylist(widget.playlistId!);
     final liveIds = liveSongs.map((s) => s.id).toList();
     final sortedIds = _sorted.map((s) => s.id).toList();
     if (listEquals(liveIds, sortedIds)) return;
@@ -208,251 +211,273 @@ class _SongListScreenState extends State<SongListScreen> {
           CustomScrollView(
             controller: _scrollController,
             slivers: [
-          SliverAppBar(
-            backgroundColor: AppTheme.background,
-            expandedHeight: 200,
-            pinned: true,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_rounded,
-                  color: AppTheme.onSurface),
-              onPressed: () => Navigator.pop(context),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(widget.title,
-                  style: GoogleFonts.manrope(
-                      color: AppTheme.onSurface,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18)),
-              background: _BackgroundArt(songs: widget.songs),
-            ),
-            actions: [
-              if (_sorted.isNotEmpty)
-                IconButton(
-                  onPressed: () {
-                    final rand = _random.nextInt(_sorted.length);
-                    context.read<AudioProvider>().playSong(_sorted[rand], _sorted, rand);
-                  },
-                  icon: const Icon(Icons.shuffle_rounded,
-                      color: AppTheme.primary, size: 26),
+              SliverAppBar(
+                backgroundColor: AppTheme.background,
+                expandedHeight: 200,
+                pinned: true,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_rounded,
+                      color: AppTheme.onSurface),
+                  onPressed: () => Navigator.pop(context),
                 ),
-              if (_sorted.isNotEmpty)
-                IconButton(
-                  onPressed: () => context.read<AudioProvider>().playSong(_sorted.first, _sorted, 0),
-                  icon: const Icon(Icons.play_circle_rounded,
-                      color: AppTheme.primary, size: 30),
-                ),
-              _buildSortMenu(isPlaylist),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-              child: Row(
-                children: [
-                  Text(widget.subtitle ?? '${_sorted.length} canciones',
+                flexibleSpace: FlexibleSpaceBar(
+                  title: Text(widget.title,
                       style: GoogleFonts.manrope(
-                          color: AppTheme.onSurfaceVariant, fontSize: 13)),
-                  const Spacer(),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: AppTheme.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(99)),
-                    child: Row(children: [
-                      Icon(_sortIcon(_sortMode),
-                          size: 12, color: AppTheme.primary),
-                      const SizedBox(width: 4),
-                      Text(_sortLabel(_sortMode),
-                          style: GoogleFonts.manrope(
-                              color: AppTheme.primary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700)),
-                    ]),
-                  ),
+                          color: AppTheme.onSurface,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18)),
+                  background: _BackgroundArt(songs: widget.songs),
+                ),
+                actions: [
+                  if (_sorted.isNotEmpty)
+                    IconButton(
+                      onPressed: () {
+                        final rand = _random.nextInt(_sorted.length);
+                        context
+                            .read<AudioProvider>()
+                            .playSong(_sorted[rand], _sorted, rand);
+                      },
+                      icon: const Icon(Icons.shuffle_rounded,
+                          color: AppTheme.primary, size: 26),
+                    ),
+                  if (_sorted.isNotEmpty)
+                    IconButton(
+                      onPressed: () => context
+                          .read<AudioProvider>()
+                          .playSong(_sorted.first, _sorted, 0),
+                      icon: const Icon(Icons.play_circle_rounded,
+                          color: AppTheme.primary, size: 30),
+                    ),
+                  _buildSortMenu(isPlaylist),
                 ],
               ),
-            ),
-          ),
-          if (_sorted.isEmpty)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                  child: Row(
                     children: [
-                      const Icon(Icons.music_off_rounded,
-                          color: AppTheme.outline, size: 64),
-                      const SizedBox(height: 16),
-                      Text('Esta lista está vacía',
+                      Text(widget.subtitle ?? '${_sorted.length} canciones',
                           style: GoogleFonts.manrope(
-                              color: AppTheme.onSurfaceVariant, fontSize: 16)),
-                    ]),
+                              color: AppTheme.onSurfaceVariant, fontSize: 13)),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: AppTheme.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(99)),
+                        child: Row(children: [
+                          Icon(_sortIcon(_sortMode),
+                              size: 12, color: AppTheme.primary),
+                          const SizedBox(width: 4),
+                          Text(_sortLabel(_sortMode),
+                              style: GoogleFonts.manrope(
+                                  color: AppTheme.primary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700)),
+                        ]),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            )
-          else if (isPlaylist && _sortMode == _SortMode.custom)
-            SliverPadding(
-              padding: const EdgeInsets.only(bottom: 8),
-              sliver: SliverReorderableList(
-                itemCount: _sorted.length,
-                onReorder: (o, n) => _onReorder(o, n, context.read<LibraryProvider>()),
-                itemBuilder: (context, i) {
-                  final song = _sorted[i];
-                  return ReorderableCustomDelayDragStartListener(
-                    key: ValueKey(song.id),
-                    index: i,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Selector<AudioProvider, bool>(
+              if (_sorted.isEmpty)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.music_off_rounded,
+                              color: AppTheme.outline, size: 64),
+                          const SizedBox(height: 16),
+                          Text('Esta lista está vacía',
+                              style: GoogleFonts.manrope(
+                                  color: AppTheme.onSurfaceVariant,
+                                  fontSize: 16)),
+                        ]),
+                  ),
+                )
+              else if (isPlaylist && _sortMode == _SortMode.custom)
+                SliverPadding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  sliver: SliverReorderableList(
+                    itemCount: _sorted.length,
+                    onReorder: (o, n) =>
+                        _onReorder(o, n, context.read<LibraryProvider>()),
+                    itemBuilder: (context, i) {
+                      final song = _sorted[i];
+                      return ReorderableCustomDelayDragStartListener(
+                        key: ValueKey(song.id),
+                        index: i,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Selector<AudioProvider, bool>(
+                            selector: (_, a) => a.currentSong?.id == song.id,
+                            builder: (context, isPlaying, _) => TrackTile(
+                              song: song,
+                              isPlaying: isPlaying,
+                              onTap: () {
+                                context
+                                    .read<LibraryProvider>()
+                                    .addToRecentlyPlayed(song);
+                                context
+                                    .read<LibraryProvider>()
+                                    .incrementPlayCount(song.id);
+                                context
+                                    .read<AudioProvider>()
+                                    .playSong(song, _sorted, i);
+                              },
+                              onMore: () => _showOptions(context, song,
+                                  context.read<LibraryProvider>()),
+                              trailingOverride: IconButton(
+                                onPressed: () => _showOptions(context, song,
+                                    context.read<LibraryProvider>()),
+                                icon: const Icon(Icons.more_horiz_rounded,
+                                    color: AppTheme.onSurfaceVariant),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                      final song = _sorted[i];
+                      return Selector<AudioProvider, bool>(
                         selector: (_, a) => a.currentSong?.id == song.id,
                         builder: (context, isPlaying, _) => TrackTile(
                           song: song,
                           isPlaying: isPlaying,
                           onTap: () {
-                            context.read<LibraryProvider>().addToRecentlyPlayed(song);
-                            context.read<LibraryProvider>().incrementPlayCount(song.id);
-                            context.read<AudioProvider>().playSong(song, _sorted, i);
+                            context
+                                .read<LibraryProvider>()
+                                .addToRecentlyPlayed(song);
+                            context
+                                .read<LibraryProvider>()
+                                .incrementPlayCount(song.id);
+                            context
+                                .read<AudioProvider>()
+                                .playSong(song, _sorted, i);
                           },
-                          onMore: () => _showOptions(context, song, context.read<LibraryProvider>()),
-                          trailingOverride: IconButton(
-                            onPressed: () =>
-                                _showOptions(context, song, context.read<LibraryProvider>()),
-                            icon: const Icon(Icons.more_horiz_rounded,
-                                color: AppTheme.onSurfaceVariant),
-                          ),
+                          onMore: () => _showOptions(
+                              context, song, context.read<LibraryProvider>()),
                         ),
-                      ),
-                    ),
-                  );
+                      );
+                    },
+                    childCount: _sorted.length,
+                  ),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 8)),
+            ],
+          ),
+          if (isPlaylist && _sortMode == _SortMode.az && _sorted.isNotEmpty)
+            Positioned(
+              right: 0,
+              top: max(kToolbarHeight.toDouble(),
+                      _kExpandedHeader - _sidebarScrollOffset) +
+                  _kHeaderInfoHeight,
+              bottom: 40,
+              child: Listener(
+                onPointerDown: (e) {
+                  setState(() => _showLetterOverlay = true);
+                  _updateLetterFromGlobal(e.position);
                 },
-              ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, i) {
-                  final song = _sorted[i];
-                  return Selector<AudioProvider, bool>(
-                    selector: (_, a) => a.currentSong?.id == song.id,
-                    builder: (context, isPlaying, _) => TrackTile(
-                      song: song,
-                      isPlaying: isPlaying,
-                      onTap: () {
-                        context.read<LibraryProvider>().addToRecentlyPlayed(song);
-                        context.read<LibraryProvider>().incrementPlayCount(song.id);
-                        context.read<AudioProvider>().playSong(song, _sorted, i);
-                      },
-                      onMore: () => _showOptions(context, song, context.read<LibraryProvider>()),
-                    ),
-                  );
+                onPointerMove: (e) {
+                  _updateLetterFromGlobal(e.position);
                 },
-                childCount: _sorted.length,
-              ),
-            ),
-          const SliverToBoxAdapter(child: SizedBox(height: 8)),
-        ],
-      ),
-      if (isPlaylist && _sortMode == _SortMode.az && _sorted.isNotEmpty)
-        Positioned(
-          right: 0,
-          top: max(kToolbarHeight.toDouble(), _kExpandedHeader - _sidebarScrollOffset) + _kHeaderInfoHeight,
-          bottom: 40,
-          child: Listener(
-            onPointerDown: (e) {
-              setState(() => _showLetterOverlay = true);
-              _updateLetterFromGlobal(e.position);
-            },
-            onPointerMove: (e) {
-              _updateLetterFromGlobal(e.position);
-            },
-            onPointerUp: (_) {
-              Future.delayed(const Duration(milliseconds: 500), () {
-                if (mounted) {
+                onPointerUp: (_) {
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    if (mounted) {
+                      setState(() {
+                        _showLetterOverlay = false;
+                        _activeLetter = null;
+                      });
+                    }
+                  });
+                },
+                onPointerCancel: (_) {
                   setState(() {
                     _showLetterOverlay = false;
                     _activeLetter = null;
                   });
-                }
-              });
-            },
-            onPointerCancel: (_) {
-              setState(() {
-                _showLetterOverlay = false;
-                _activeLetter = null;
-              });
-            },
-            child: Container(
-              key: _sidebarKey,
-              width: 36,
-              color: Colors.transparent,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: letters.map((letter) {
-                  final enabled = _letterIndex.containsKey(letter);
-                  final isActive = _activeLetter == letter;
-                  return AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 80),
-                    style: TextStyle(
-                      fontSize: isActive ? 12 : 9,
-                      fontWeight: FontWeight.w700,
-                      color: isActive
-                          ? AppTheme.tertiary
-                          : enabled
-                              ? AppTheme.primary
-                              : AppTheme.outline.withAlpha(60),
-                    ),
-                    child: Text(letter, textAlign: TextAlign.center),
-                  );
-                }).toList(),
+                },
+                child: Container(
+                  key: _sidebarKey,
+                  width: 36,
+                  color: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: letters.map((letter) {
+                      final enabled = _letterIndex.containsKey(letter);
+                      final isActive = _activeLetter == letter;
+                      return AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 80),
+                        style: TextStyle(
+                          fontSize: isActive ? 12 : 9,
+                          fontWeight: FontWeight.w700,
+                          color: isActive
+                              ? AppTheme.tertiary
+                              : enabled
+                                  ? AppTheme.primary
+                                  : AppTheme.outline.withAlpha(60),
+                        ),
+                        child: Text(letter, textAlign: TextAlign.center),
+                      );
+                    }).toList(),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      if (_showLetterOverlay && _activeLetter != null)
-        Positioned.fill(
-          child: IgnorePointer(
-            child: Center(
-              child: AnimatedScale(
-                scale: _showLetterOverlay ? 1.0 : 0.6,
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOutBack,
-                child: Container(
-                  width: 90,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceContainerHigh.withAlpha(220),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: AppTheme.primary.withAlpha(60), width: 1),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(100),
-                        blurRadius: 24,
-                      )
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      _activeLetter!,
-                      style: TextStyle(
-                        fontSize: 52,
-                        fontWeight: FontWeight.w900,
-                        color: _letterIndex.containsKey(_activeLetter)
-                            ? AppTheme.tertiary
-                            : AppTheme.outline,
-                        height: 1,
+          if (_showLetterOverlay && _activeLetter != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: AnimatedScale(
+                    scale: _showLetterOverlay ? 1.0 : 0.6,
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOutBack,
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceContainerHigh.withAlpha(220),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: AppTheme.primary.withAlpha(60), width: 1),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(100),
+                            blurRadius: 24,
+                          )
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          _activeLetter!,
+                          style: TextStyle(
+                            fontSize: 52,
+                            fontWeight: FontWeight.w900,
+                            color: _letterIndex.containsKey(_activeLetter)
+                                ? AppTheme.tertiary
+                                : AppTheme.outline,
+                            height: 1,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ),
-    ],
-  ),
-);
-}
+        ],
+      ),
+    );
+  }
 
   Widget _buildSortMenu(bool isPlaylist) {
     return PopupMenuButton<_SortMode>(
@@ -464,7 +489,9 @@ class _SongListScreenState extends State<SongListScreen> {
           _applySort();
         });
         if (widget.playlistId != null) {
-          context.read<LibraryProvider>().setPlaylistSortMode(widget.playlistId!, mode.name);
+          context
+              .read<LibraryProvider>()
+              .setPlaylistSortMode(widget.playlistId!, mode.name);
         }
       },
       itemBuilder: (_) => [
