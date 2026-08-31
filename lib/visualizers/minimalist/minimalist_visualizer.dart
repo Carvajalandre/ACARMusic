@@ -64,11 +64,11 @@ class MinimalistVisualizer extends StatelessWidget {
   }
 
   Widget _buildArtwork(double scaledSize) {
-    // La resolución de la portada se solicita en un tamaño mayor al mostrado
-    // (downscaling): se pide `size` grande a alta `quality` y se dibuja a la
-    // medida real, quedando así nítida en lugar de ampliada/borrosa.
+    // La resolución de la portada se solicita en un tamaño mucho mayor al
+    // mostrado (downscaling agresivo): se pide a alta resolución y se dibuja
+    // a menor tamaño, quedando nítida en lugar de ampliada/borrosa.
     final displayRes = scaledSize * 0.85;
-    final requestedRes = (scaledSize * 1.5).round().clamp(256, 2048);
+    final requestedRes = (scaledSize * 3.0).round().clamp(512, 4096);
 
     final outerPadding = (scaledSize * 0.035).clamp(8.0, 14.0);
     final artSize = scaledSize - outerPadding * 2;
