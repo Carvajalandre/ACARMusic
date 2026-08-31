@@ -70,6 +70,7 @@ class _VisualizerFactoryState extends State<VisualizerFactory> {
       case VisualizerStyle.minimalist:
         return MinimalistVisualizer(
           albumId: widget.albumId,
+          isPlaying: widget.isPlaying,
           size: widget.size,
           glowColor: widget.glowColor,
         );
