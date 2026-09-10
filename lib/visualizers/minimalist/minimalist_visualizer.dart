@@ -126,7 +126,7 @@ class MinimalistVisualizer extends StatelessWidget {
                     artworkHeight: displayRes,
                     artworkQuality: FilterQuality.high,
                     artworkScale: 1.0,
-                    artworkBorder: BorderRadius.circular(imageRadius),
+                    artworkBorder: BorderRadius.zero,
                     keepOldArtwork: true,
                     nullArtworkWidget: _defaultArt(artSize),
                   )
