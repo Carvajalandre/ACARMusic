@@ -144,12 +144,11 @@ class _PlayerContentState extends State<_PlayerContent>
               final c2 = Color.lerp(_colorB, Colors.black, t)!;
               return Container(
                 decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.lerp(const Alignment(-0.5, -0.6),
-                        const Alignment(0.5, 0.3), t)!,
-                    radius: 1.3,
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomLeft,
+                    end: Alignment.topRight,
                     colors: [c1, c2, Colors.black],
-                    stops: const [0.0, 0.55, 1.0],
+                    stops: const [0.0, 0.45, 1.0],
                   ),
                 ),
                 child: child,
@@ -469,9 +468,12 @@ class _PlayerContentState extends State<_PlayerContent>
                       child: QueryArtworkWidget(
                         id: song.id,
                         type: ArtworkType.AUDIO,
+                        size: 256,
+                        quality: 90,
                         artworkFit: BoxFit.cover,
                         artworkWidth: 38,
                         artworkHeight: 38,
+                        artworkQuality: FilterQuality.high,
                         keepOldArtwork: true,
                         nullArtworkWidget: Container(
                             color: AppTheme.surfaceContainerHigh,
@@ -600,11 +602,34 @@ class _PlayerContentState extends State<_PlayerContent>
                   active: shuffleOn,
                   activeColor: AppTheme.primary,
                   glowColor: AppTheme.primary,
-                  child: Icon(Icons.shuffle_rounded,
-                      color: shuffleOn
-                          ? AppTheme.primary
-                          : AppTheme.onSurfaceVariant,
-                      size: 26),
+                  child: SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Icon(Icons.shuffle_rounded,
+                            color: shuffleOn
+                                ? AppTheme.primary
+                                : AppTheme.onSurfaceVariant,
+                            size: 26),
+                        if (!shuffleOn)
+                          Positioned(
+                            child: Transform.rotate(
+                              angle: -0.785,
+                              child: Container(
+                                width: 28,
+                                height: 2,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.onSurfaceVariant,
+                                  borderRadius: BorderRadius.circular(1),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
               // ── Anterior ──────────────────────────────────────────────
@@ -681,12 +706,8 @@ class _PlayerContentState extends State<_PlayerContent>
                         : 'Sin repetición',
                 child: GlowButton(
                   active: repeatActive,
-                  activeColor: repeatMode == AppRepeatState.one
-                      ? Colors.amberAccent
-                      : AppTheme.primary,
-                  glowColor: repeatMode == AppRepeatState.one
-                      ? Colors.amberAccent
-                      : AppTheme.primary,
+                  activeColor: AppTheme.primary,
+                  glowColor: AppTheme.primary,
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
                     transitionBuilder: (child, anim) =>
@@ -695,9 +716,7 @@ class _PlayerContentState extends State<_PlayerContent>
                       repeatIcon,
                       key: ValueKey(repeatMode),
                       color: repeatActive
-                          ? (repeatMode == AppRepeatState.one
-                              ? Colors.amberAccent
-                              : AppTheme.primary)
+                          ? AppTheme.primary
                           : AppTheme.onSurfaceVariant,
                       size: 26,
                     ),
@@ -1019,5 +1038,3 @@ class _ActionBtn extends StatelessWidget {
     );
   }
 }
-
-

@@ -172,6 +172,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               artworkFit: BoxFit.cover,
                               artworkWidth: 148,
                               artworkHeight: 148,
+                              artworkQuality: FilterQuality.high,
                               keepOldArtwork: true,
                               nullArtworkWidget: Container(
                                 color: AppTheme.surfaceContainerHigh,

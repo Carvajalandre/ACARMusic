@@ -53,9 +53,6 @@ class _VisualizerFactoryState extends State<VisualizerFactory> {
           height: widget.size,
           child: BarVisualizer(
             fftStream: widget.fftStream ?? _fallbackStream,
-            paletteVibrant: widget.glowColor,
-            paletteDominant: widget.paletteDominant,
-            paletteMuted: widget.paletteMuted,
           ),
         );
       case VisualizerStyle.radialVisualizer:
@@ -70,6 +67,7 @@ class _VisualizerFactoryState extends State<VisualizerFactory> {
       case VisualizerStyle.minimalist:
         return MinimalistVisualizer(
           albumId: widget.albumId,
+          isPlaying: widget.isPlaying,
           size: widget.size,
           glowColor: widget.glowColor,
         );

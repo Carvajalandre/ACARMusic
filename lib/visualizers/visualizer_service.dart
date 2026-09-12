@@ -50,6 +50,7 @@ class VisualizerService {
         onError: (_) {
           if (_started) _startSimulated();
         },
+        cancelOnError: false,
       );
     } else {
       _startSimulated();
@@ -162,8 +163,12 @@ class VisualizerService {
     _silenceTimer?.cancel();
     _silenceTimer = null;
     _controller.close();
+    unawaited(_safeStopNative());
+  }
+
+  Future<void> _safeStopNative() async {
     try {
-      _methodChannel.invokeMethod('stopVisualizer');
+      await _methodChannel.invokeMethod('stopVisualizer');
     } catch (_) {}
   }
 }

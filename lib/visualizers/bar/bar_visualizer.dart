@@ -3,24 +3,12 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import '../../theme/app_theme.dart';
-
 class BarVisualizer extends StatefulWidget {
   final Stream<List<double>> fftStream;
-  final Stream<String>? statusStream;
-  final Color paletteVibrant;
-  final Color paletteDominant;
-  final Color paletteMuted;
-  final int barCount;
 
   const BarVisualizer({
     super.key,
     required this.fftStream,
-    this.statusStream,
-    this.paletteVibrant = AppTheme.primary,
-    this.paletteDominant = AppTheme.primary,
-    this.paletteMuted = AppTheme.primary,
-    this.barCount = 32,
   });
 
   @override
@@ -28,47 +16,42 @@ class BarVisualizer extends StatefulWidget {
 }
 
 class _BarVisualizerState extends State<BarVisualizer> {
-  late List<double> _levels;
-  StreamSubscription<List<double>>? _sub;
+  static const int _columnCount = 18;
+
+  final List<double> _levels = List.filled(_columnCount, 0.0);
+  final List<double> _targets = List.filled(_columnCount, 0.0);
+  StreamSubscription<List<double>>? _subscription;
+  Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
-    _levels = List.filled(widget.barCount, 0.0);
-    _sub = widget.fftStream.listen(_onData);
+    _ticker = Timer.periodic(const Duration(milliseconds: 33), (_) => _tick());
+    _subscription = widget.fftStream.listen(_processFftData);
   }
 
   @override
-  void didUpdateWidget(covariant BarVisualizer old) {
-    super.didUpdateWidget(old);
-    if (old.barCount != widget.barCount) {
-      _levels = List.filled(widget.barCount, 0.0);
-    }
-    if (old.fftStream != widget.fftStream) {
-      _sub?.cancel();
-      _sub = widget.fftStream.listen(_onData);
+  void didUpdateWidget(covariant BarVisualizer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.fftStream != widget.fftStream) {
+      _subscription?.cancel();
+      _subscription = widget.fftStream.listen(_processFftData);
     }
   }
 
-  void _onData(List<double> data) {
-    if (!mounted || data.isEmpty) return;
-    final mapped = _mapBands(data, widget.barCount);
+  void _processFftData(List<double> data) {
+    if (data.isEmpty) return;
+    final mapped = _mapBands(data, _columnCount);
+
     var energy = 0.0;
     for (final value in mapped) {
       energy += value;
     }
     energy /= mapped.length;
 
-    setState(() {
-      for (var i = 0; i < _levels.length; i++) {
-        final target = mapped[i];
-        final attack = target > _levels[i] ? 0.86 : 0.52;
-        final silenceDecay = energy < 0.025 ? 0.34 : attack;
-        _levels[i] += (target - _levels[i]) * silenceDecay;
-        if (energy < 0.012) _levels[i] *= 0.35;
-        _levels[i] = _levels[i].clamp(0.0, 1.0);
-      }
-    });
+    for (var i = 0; i < _columnCount; i++) {
+      _targets[i] = energy;
+    }
   }
 
   List<double> _mapBands(List<double> data, int count) {
@@ -77,25 +60,48 @@ class _BarVisualizerState extends State<BarVisualizer> {
     for (var i = 0; i < count; i++) {
       final startRatio = i / count;
       final endRatio = (i + 1) / count;
-      final start = (pow(startRatio, 1.45) * last).floor().clamp(0, last);
-      final end = max(start + 1, (pow(endRatio, 1.45) * last).ceil())
+      final start = (pow(startRatio, 1.35) * last).floor().clamp(0, last);
+      final end = max(start + 1, (pow(endRatio, 1.35) * last).ceil())
           .clamp(1, data.length);
       var peak = 0.0;
       var sum = 0.0;
       for (var j = start; j < end; j++) {
-        final weighted = data[j].clamp(0.0, 1.0) * (1.0 + i / count * 0.18);
-        peak = max(peak, weighted);
-        sum += weighted;
+        final value = data[j].clamp(0.0, 1.0);
+        peak = max(peak, value);
+        sum += value;
       }
       final avg = sum / (end - start);
-      output[i] = (avg * 0.42 + peak * 0.58).clamp(0.0, 1.0);
+      final shaped = pow((peak * 0.6 + avg * 0.4).clamp(0.0, 1.0), 0.5);
+      output[i] = (shaped * 2.2).clamp(0.0, 1.0).toDouble();
     }
     return output;
   }
 
+  void _tick() {
+    if (!mounted) return;
+    var energy = 0.0;
+    for (final target in _targets) {
+      energy += target;
+    }
+    energy /= _targets.length;
+
+    var changed = false;
+    for (var i = 0; i < _columnCount; i++) {
+      final target = _targets[i];
+      final speed =
+          target > _levels[i] ? 0.72 : (energy < 0.02 ? 0.55 : 0.38);
+      final next =
+          (_levels[i] + (target - _levels[i]) * speed).clamp(0.0, 1.0);
+      if ((next - _levels[i]).abs() > 0.001) changed = true;
+      _levels[i] = energy < 0.01 ? next * 0.65 : next;
+    }
+    if (changed) setState(() {});
+  }
+
   @override
   void dispose() {
-    _sub?.cancel();
+    _subscription?.cancel();
+    _ticker?.cancel();
     super.dispose();
   }
 
@@ -103,60 +109,112 @@ class _BarVisualizerState extends State<BarVisualizer> {
   Widget build(BuildContext context) {
     return CustomPaint(
       size: Size.infinite,
-      painter: _BarVisualizerPainter(
-        levels: _levels,
-        paletteVibrant: widget.paletteVibrant,
-        paletteDominant: widget.paletteDominant,
-        paletteMuted: widget.paletteMuted,
-      ),
+      painter: _GridBarPainter(levels: _levels),
     );
   }
 }
 
-class _BarVisualizerPainter extends CustomPainter {
+class _GridBarPainter extends CustomPainter {
   final List<double> levels;
-  final Color paletteVibrant;
-  final Color paletteDominant;
-  final Color paletteMuted;
 
-  const _BarVisualizerPainter({
-    required this.levels,
-    required this.paletteVibrant,
-    required this.paletteDominant,
-    required this.paletteMuted,
-  });
+  static const int _maxBlocks = 10;
+
+  const _GridBarPainter({required this.levels});
+
+  static const List<Color> _gradient = [
+    Color(0xFF22C55E),
+    Color(0xFF65C73E),
+    Color(0xFFA3E028),
+    Color(0xFFD4E020),
+    Color(0xFFF5D619),
+    Color(0xFFF5B815),
+    Color(0xFFF09A10),
+    Color(0xFFEB7C0B),
+    Color(0xFFE55E06),
+    Color(0xFFE04002),
+    Color(0xFFDB2200),
+  ];
 
   @override
   void paint(Canvas canvas, Size size) {
     if (levels.isEmpty || size.isEmpty) return;
-    final gap = (size.width / 120).clamp(2.0, 5.0);
-    final barWidth = ((size.width - gap * (levels.length - 1)) / levels.length)
-        .clamp(2.0, 14.0);
-    final baseline = size.height;
+
+    final gap = (size.width / 180).clamp(2.0, 5.0);
+    final blockW =
+        ((size.width - gap * (levels.length - 1)) / levels.length)
+            .clamp(4.0, 24.0);
+    final blockH = blockW;
+    final totalH = size.height * 0.82;
+    final baseline = totalH;
 
     for (var i = 0; i < levels.length; i++) {
       final level = levels[i].clamp(0.0, 1.0);
-      final minHeight = size.height * 0.035;
-      final height = max(minHeight, level * size.height);
-      final left = i * (barWidth + gap) +
-          (size.width -
-                  (barWidth * levels.length + gap * (levels.length - 1))) /
+      final activeBlocks = (level * _maxBlocks).ceil().clamp(0, _maxBlocks);
+      final left = i * (blockW + gap) +
+          (size.width - (blockW * levels.length + gap * (levels.length - 1))) /
               2;
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(left, baseline - height, barWidth, height),
-        Radius.circular(barWidth / 2),
-      );
-      final color = Color.lerp(
-        Color.lerp(paletteMuted, paletteDominant, i / levels.length),
-        Color.lerp(paletteVibrant, Colors.white, level * 0.25),
-        0.45 + level * 0.45,
-      )!;
-      final paint = Paint()
-        ..color = color.withAlpha((135 + level * 120).round().clamp(90, 255));
-      canvas.drawRRect(rect, paint);
+
+      for (var b = 0; b < activeBlocks; b++) {
+        final t = b / (_maxBlocks - 1);
+        final color = _colorAt(t);
+        final top = baseline - (b + 1) * (blockH + gap * 0.6);
+        final opacity = (0.45 + level * 0.55).clamp(0.0, 1.0);
+        final rect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(left, top, blockW, blockH),
+          Radius.circular(blockW * 0.18),
+        );
+        canvas.drawRRect(
+          rect,
+          Paint()..color = color.withAlpha((opacity * 255).round()),
+        );
+      }
+
+      if (activeBlocks > 0) {
+        final topT = (activeBlocks - 1) / (_maxBlocks - 1);
+        final topColor = _colorAt(topT);
+        final top = baseline - activeBlocks * (blockH + gap * 0.6);
+        final glowOpacity = (level * 0.45).clamp(0.0, 1.0);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(left - 1, top - 1, blockW + 2, blockH + 2),
+            Radius.circular(blockW * 0.22),
+          ),
+          Paint()
+            ..color = topColor.withAlpha((glowOpacity * 255).round())
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        );
+      }
+
+      if (activeBlocks > 0) {
+        final reflectBase = baseline + gap * 2;
+        for (var b = 0; b < activeBlocks && b < 4; b++) {
+          final t = b / (_maxBlocks - 1);
+          final color = _colorAt(t);
+          final top = reflectBase + b * (blockH + gap * 0.6);
+          final opacity = (0.18 - b * 0.04).clamp(0.0, 0.18);
+          final rect = RRect.fromRectAndRadius(
+            Rect.fromLTWH(left, top, blockW, blockH),
+            Radius.circular(blockW * 0.18),
+          );
+          canvas.drawRRect(
+            rect,
+            Paint()..color = color.withAlpha((opacity * 255).round()),
+          );
+        }
+      }
     }
   }
 
+  Color _colorAt(double t) {
+    final scaled = t * (_gradient.length - 1);
+    final index = scaled.floor().clamp(0, _gradient.length - 2);
+    return Color.lerp(
+      _gradient[index],
+      _gradient[index + 1],
+      scaled - index,
+    )!;
+  }
+
   @override
-  bool shouldRepaint(covariant _BarVisualizerPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _GridBarPainter oldDelegate) => true;
 }

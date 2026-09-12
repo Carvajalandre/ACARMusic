@@ -18,7 +18,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   late TabController _tabController;
   final ScrollController _tracksScrollCtrl = ScrollController();
   Map<String, int> _letterIndex = {};
-  static const double _tileHeight = 86.0;
+  static const double _tileHeight = TrackTile.itemExtent;
 
   String? _activeLetter;
   bool _showLetterOverlay = false;
@@ -375,6 +375,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                   artworkFit: BoxFit.cover,
                   artworkWidth: 200,
                   artworkHeight: 200,
+                  artworkQuality: FilterQuality.high,
                   keepOldArtwork: true,
                   nullArtworkWidget: Container(
                     decoration: BoxDecoration(
@@ -444,6 +445,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         artworkFit: BoxFit.cover,
                         artworkWidth: 52,
                         artworkHeight: 52,
+                        artworkQuality: FilterQuality.high,
                         keepOldArtwork: true,
                         nullArtworkWidget: Container(
                           color: AppTheme.surfaceContainerHigh,

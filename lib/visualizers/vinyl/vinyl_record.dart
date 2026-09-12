@@ -119,6 +119,7 @@ class _VinylRecordState extends State<VinylRecord>
                       artworkFit: BoxFit.cover,
                       artworkWidth: centerSize,
                       artworkHeight: centerSize,
+                      artworkQuality: FilterQuality.high,
                       keepOldArtwork: true,
                       nullArtworkWidget: _defaultCenter())
                   : _defaultCenter(),

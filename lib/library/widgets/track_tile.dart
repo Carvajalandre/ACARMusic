@@ -5,6 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 
 class TrackTile extends StatefulWidget {
+  // 1.0 mantiene el tamaño original; 0.75 lo reduce un 25%; 1.8 lo aumenta.
+  static const double sizeScale = 0.75;
+  static const double _baseItemExtent = 84.0;
+  static const double itemExtent = _baseItemExtent * sizeScale;
+
   final SongModel song;
   final bool isPlaying;
   final VoidCallback onTap;
@@ -27,6 +32,8 @@ class _TrackTileState extends State<TrackTile> {
   Color _accent = AppTheme.primary;
   int? _lastSongId;
 
+  double _size(double value) => value * TrackTile.sizeScale;
+
   @override
   Widget build(BuildContext context) {
     if (widget.isPlaying && _lastSongId != widget.song.id) {
@@ -36,6 +43,7 @@ class _TrackTileState extends State<TrackTile> {
     final activeColor = _accentForText(_accent);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
+      height: TrackTile.itemExtent,
       margin: EdgeInsets.zero,
       decoration: BoxDecoration(
         color: widget.isPlaying
@@ -46,69 +54,75 @@ class _TrackTileState extends State<TrackTile> {
           bottom: BorderSide(color: Colors.white.withAlpha(42)),
         ),
       ),
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        onTap: widget.onTap,
-        leading: SizedBox(
-          width: 64,
-          height: 64,
-          child: Stack(children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: RepaintBoundary(
-                child: SizedBox(
-                  width: 64,
-                  height: 64,
-                  child: QueryArtworkWidget(
-                    id: widget.song.id,
-                    type: ArtworkType.AUDIO,
-                    artworkBorder: BorderRadius.circular(12),
-                    artworkFit: BoxFit.cover,
-                    artworkWidth: 64,
-                    artworkHeight: 64,
-                    keepOldArtwork: true,
-                    nullArtworkWidget: Container(
-                      color: AppTheme.surfaceContainerHigh,
-                      child: const Center(
-                          child: Icon(Icons.music_note_rounded,
-                              color: AppTheme.onSurfaceVariant)),
+      child: Center(
+        child: ListTile(
+          minTileHeight: _size(56),
+          contentPadding:
+              EdgeInsets.symmetric(horizontal: _size(20), vertical: _size(10)),
+          onTap: widget.onTap,
+          leading: SizedBox(
+            width: _size(64),
+            height: _size(64),
+            child: Stack(children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(_size(12)),
+                child: RepaintBoundary(
+                  child: SizedBox(
+                    width: _size(64),
+                    height: _size(64),
+                    child: QueryArtworkWidget(
+                      id: widget.song.id,
+                      type: ArtworkType.AUDIO,
+                      size: 256,
+                      quality: 90,
+                      artworkBorder: BorderRadius.circular(_size(12)),
+                      artworkFit: BoxFit.cover,
+                      artworkWidth: _size(64),
+                      artworkHeight: _size(64),
+                      artworkQuality: FilterQuality.high,
+                      keepOldArtwork: true,
+                      nullArtworkWidget: Container(
+                        color: AppTheme.surfaceContainerHigh,
+                        child: const Center(
+                            child: Icon(Icons.music_note_rounded,
+                                color: AppTheme.onSurfaceVariant)),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            if (widget.isPlaying)
-              Container(
-                decoration: BoxDecoration(
-                    color: _accent.withAlpha(155),
-                    borderRadius: BorderRadius.circular(12)),
-                child: const Center(
-                    child: Icon(Icons.equalizer_rounded,
-                        color: Colors.white, size: 20)),
-              ),
-          ]),
+              if (widget.isPlaying)
+                Container(
+                  decoration: BoxDecoration(
+                      color: _accent.withAlpha(155),
+                      borderRadius: BorderRadius.circular(12)),
+                  child: Center(
+                      child: Icon(Icons.equalizer_rounded,
+                          color: Colors.white, size: _size(20))),
+                ),
+            ]),
+          ),
+          title: Text(widget.song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.manrope(
+                  color: widget.isPlaying ? activeColor : AppTheme.onSurface,
+                  fontSize: _size(17),
+                  fontWeight: FontWeight.w700)),
+          subtitle: Text(widget.song.artist ?? 'Artista desconocido',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.manrope(
+                  color: widget.isPlaying
+                      ? activeColor.withAlpha(190)
+                      : AppTheme.onSurfaceVariant,
+                  fontSize: _size(14))),
+          trailing: widget.trailingOverride ??
+              IconButton(
+                  icon: Icon(Icons.more_horiz_rounded,
+                      color: AppTheme.onSurfaceVariant, size: _size(24)),
+                  onPressed: widget.onMore),
         ),
-        title: Text(widget.song.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.manrope(
-                color: widget.isPlaying ? activeColor : AppTheme.onSurface,
-                fontSize: 17,
-                fontWeight: FontWeight.w700)),
-        subtitle: Text(widget.song.artist ?? 'Artista desconocido',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.manrope(
-                color: widget.isPlaying
-                    ? activeColor.withAlpha(190)
-                    : AppTheme.onSurfaceVariant,
-                fontSize: 14)),
-        trailing: widget.trailingOverride ??
-            IconButton(
-                icon: const Icon(Icons.more_horiz_rounded,
-                    color: AppTheme.onSurfaceVariant),
-                onPressed: widget.onMore),
       ),
     );
   }
