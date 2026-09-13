@@ -22,6 +22,8 @@ class _BarVisualizerState extends State<BarVisualizer> {
   final List<double> _targets = List.filled(_columnCount, 0.0);
   StreamSubscription<List<double>>? _subscription;
   Timer? _ticker;
+  double _instrumentEnergy = 0.0;
+  double _vocalEnergy = 0.0;
 
   @override
   void initState() {
@@ -43,15 +45,51 @@ class _BarVisualizerState extends State<BarVisualizer> {
     if (data.isEmpty) return;
     final mapped = _mapBands(data, _columnCount);
 
-    var energy = 0.0;
-    for (final value in mapped) {
-      energy += value;
-    }
-    energy /= mapped.length;
+    // Separamos dos rangos perceptibles: graves/agudos (instrumentos) y
+    // medios (presencia de la voz). No es una separación por IA de stems,
+    // pero sí responde a las bandas que suelen ocupar ambos elementos.
+    _instrumentEnergy = _energyForRanges(data, const [
+      _FrequencyRange(0.00, 0.23),
+      _FrequencyRange(0.62, 1.00),
+    ]);
+    _vocalEnergy = _energyForRanges(data, const [
+      _FrequencyRange(0.24, 0.61),
+    ]);
 
     for (var i = 0; i < _columnCount; i++) {
-      _targets[i] = energy;
+      final isVocalBand = i >= 5 && i <= 11;
+      final groupEnergy = isVocalBand ? _vocalEnergy : _instrumentEnergy;
+      final directBand = mapped[i];
+      _targets[i] = (isVocalBand
+              ? directBand * .78 + groupEnergy * .42
+              : directBand * .88 + groupEnergy * .20)
+          .clamp(0.0, 1.0);
     }
+  }
+
+  double _energyForRanges(
+    List<double> data,
+    List<_FrequencyRange> ranges,
+  ) {
+    var sum = 0.0;
+    var count = 0;
+    var peak = 0.0;
+    for (final range in ranges) {
+      final start =
+          (range.start * data.length).floor().clamp(0, data.length).toInt();
+      final end =
+          (range.end * data.length).ceil().clamp(start, data.length).toInt();
+      for (var i = start; i < end; i++) {
+        final value = data[i].clamp(0.0, 1.0);
+        sum += value;
+        peak = max(peak, value);
+        count++;
+      }
+    }
+    if (count == 0) return 0.0;
+    return pow((sum / count) * .68 + peak * .32, .58)
+        .clamp(0.0, 1.0)
+        .toDouble();
   }
 
   List<double> _mapBands(List<double> data, int count) {
@@ -79,21 +117,15 @@ class _BarVisualizerState extends State<BarVisualizer> {
 
   void _tick() {
     if (!mounted) return;
-    var energy = 0.0;
-    for (final target in _targets) {
-      energy += target;
-    }
-    energy /= _targets.length;
+    final energy = (_instrumentEnergy + _vocalEnergy) / 2;
 
     var changed = false;
     for (var i = 0; i < _columnCount; i++) {
       final target = _targets[i];
-      final speed =
-          target > _levels[i] ? 0.72 : (energy < 0.02 ? 0.55 : 0.38);
-      final next =
-          (_levels[i] + (target - _levels[i]) * speed).clamp(0.0, 1.0);
+      final speed = target > _levels[i] ? 0.56 : (energy < 0.02 ? 0.46 : 0.24);
+      final next = (_levels[i] + (target - _levels[i]) * speed).clamp(0.0, 1.0);
       if ((next - _levels[i]).abs() > 0.001) changed = true;
-      _levels[i] = energy < 0.01 ? next * 0.65 : next;
+      _levels[i] = energy < 0.01 ? next * 0.58 : next;
     }
     if (changed) setState(() {});
   }
@@ -112,6 +144,13 @@ class _BarVisualizerState extends State<BarVisualizer> {
       painter: _GridBarPainter(levels: _levels),
     );
   }
+}
+
+class _FrequencyRange {
+  final double start;
+  final double end;
+
+  const _FrequencyRange(this.start, this.end);
 }
 
 class _GridBarPainter extends CustomPainter {
@@ -140,9 +179,8 @@ class _GridBarPainter extends CustomPainter {
     if (levels.isEmpty || size.isEmpty) return;
 
     final gap = (size.width / 180).clamp(2.0, 5.0);
-    final blockW =
-        ((size.width - gap * (levels.length - 1)) / levels.length)
-            .clamp(4.0, 24.0);
+    final blockW = ((size.width - gap * (levels.length - 1)) / levels.length)
+        .clamp(4.0, 24.0);
     final blockH = blockW;
     final totalH = size.height * 0.82;
     final baseline = totalH;

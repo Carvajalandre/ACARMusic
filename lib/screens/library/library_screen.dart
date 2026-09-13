@@ -621,8 +621,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                     onTap: () {
                       library.addSongToPlaylist(p.id, song.id);
                       Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Agregado a ${p.name}')));
+                      _showPlaylistAddedMessage(context, p.name);
                     },
                   );
                 },
@@ -632,6 +631,44 @@ class _LibraryScreenState extends State<LibraryScreen>
         ],
       ),
     );
+  }
+
+  void _showPlaylistAddedMessage(BuildContext context, String playlistName) {
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(milliseconds: 1700),
+          margin: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            bottom: isLandscape ? 76 : 84,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.playlist_add_check_rounded,
+                  color: AppTheme.primary, size: 18),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Agregado a $playlistName',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 }
 

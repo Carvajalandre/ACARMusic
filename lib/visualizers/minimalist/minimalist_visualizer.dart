@@ -67,11 +67,14 @@ class MinimalistVisualizer extends StatelessWidget {
     // La resolución de la portada se solicita en un tamaño mucho mayor al
     // mostrado (downscaling agresivo): se pide a alta resolución y se dibuja
     // a menor tamaño, quedando nítida en lugar de ampliada/borrosa.
-    final displayRes = scaledSize * 0.85;
     final requestedRes = (scaledSize * 3.0).round().clamp(512, 4096);
 
     final outerPadding = (scaledSize * 0.035).clamp(8.0, 14.0);
     final artSize = scaledSize - outerPadding * 2;
+    // El widget ocupa exactamente el área disponible. Antes se le asignaba un
+    // tamaño menor que el contenedor y `BoxFit.cover`, por lo que las portadas
+    // rectangulares se recortaban y las cuadradas podían quedar desalineadas.
+    final displayRes = artSize;
     final radius =
         (artSize * 0.075 * cornerRoundness).clamp(4.0, 16.0);
 
@@ -121,7 +124,9 @@ class MinimalistVisualizer extends StatelessWidget {
                     type: ArtworkType.ALBUM,
                     size: requestedRes,
                     quality: 100,
-                    artworkFit: BoxFit.cover,
+                    // Conserva toda la portada; las bandas sobrantes usan el
+                    // fondo del visualizador en vez de ampliar y recortar.
+                    artworkFit: BoxFit.contain,
                     artworkWidth: displayRes,
                     artworkHeight: displayRes,
                     artworkQuality: FilterQuality.high,

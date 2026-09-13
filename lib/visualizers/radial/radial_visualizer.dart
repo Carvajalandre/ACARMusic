@@ -2,17 +2,20 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../theme/app_theme.dart';
 
 class RadialVisualizer extends StatefulWidget {
   final Stream<List<double>> fftStream;
   final Color glowColor;
+  final int? albumId;
 
   const RadialVisualizer({
     super.key,
     required this.fftStream,
     this.glowColor = AppTheme.primary,
+    this.albumId,
   });
 
   @override
@@ -115,11 +118,48 @@ class _RadialVisualizerState extends State<RadialVisualizer> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size.infinite,
-      painter: _RadialPainter(levels: _levels),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final side = min(constraints.maxWidth, constraints.maxHeight);
+        // El hueco interior del radial equivale aproximadamente al diámetro
+        // del radio interno; se deja un margen para que no tape las barras.
+        final innerArtworkSize = side * 0.34;
+        return CustomPaint(
+          size: Size.infinite,
+          painter: _RadialPainter(levels: _levels),
+          child: Center(
+            child: ClipOval(
+              child: SizedBox(
+                width: innerArtworkSize,
+                height: innerArtworkSize,
+                child: widget.albumId != null
+                    ? QueryArtworkWidget(
+                        id: widget.albumId!,
+                        type: ArtworkType.ALBUM,
+                        size: 512,
+                        quality: 100,
+                        artworkFit: BoxFit.cover,
+                        artworkWidth: innerArtworkSize,
+                        artworkHeight: innerArtworkSize,
+                        artworkQuality: FilterQuality.high,
+                        keepOldArtwork: true,
+                        nullArtworkWidget: _defaultArtwork(),
+                      )
+                    : _defaultArtwork(),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
+
+  Widget _defaultArtwork() => Container(
+        color: const Color(0xFF171717),
+        alignment: Alignment.center,
+        child: const Icon(Icons.music_note_rounded,
+            color: Colors.white54, size: 28),
+      );
 }
 
 class _RadialPainter extends CustomPainter {

@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:provider/provider.dart';
+
 import '../../theme/app_theme.dart';
 import '../../audio/audio_provider.dart';
 import '../../library/library_provider.dart';
@@ -33,6 +37,7 @@ class _PlayerContentState extends State<_PlayerContent>
   Color _colorA = const Color(0xFF1A0A2E);
   Color _colorB = const Color(0xFF0D0A20);
   Color _glowColor = const Color(0xFF6D28D9);
+  Uint8List? _artworkBytes;
   int? _lastSongId;
   bool _showQueue = false;
 
@@ -47,9 +52,10 @@ class _PlayerContentState extends State<_PlayerContent>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _bgCtrl =
-        AnimationController(vsync: this, duration: const Duration(seconds: 6))
-          ..repeat(reverse: true);
+    _bgCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..repeat(reverse: true);
     _bgAnim = CurvedAnimation(parent: _bgCtrl, curve: Curves.easeInOut);
   }
 
@@ -80,8 +86,10 @@ class _PlayerContentState extends State<_PlayerContent>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_queueScrollCtrl.hasClients) {
           _queueScrollCtrl.animateTo(
-            (currentIdx * _queueItemHeight)
-                .clamp(0.0, _queueScrollCtrl.position.maxScrollExtent),
+            (currentIdx * _queueItemHeight).clamp(
+              0.0,
+              _queueScrollCtrl.position.maxScrollExtent,
+            ),
             duration: const Duration(milliseconds: 350),
             curve: Curves.easeOut,
           );
@@ -92,14 +100,23 @@ class _PlayerContentState extends State<_PlayerContent>
 
   Future<void> _extractPalette(SongModel song) async {
     try {
-      final art = await OnAudioQuery().queryArtwork(song.id, ArtworkType.AUDIO,
-          format: ArtworkFormat.JPEG, size: 200);
+      final art = await OnAudioQuery().queryArtwork(
+        song.id,
+        ArtworkType.AUDIO,
+        format: ArtworkFormat.JPEG,
+        size: 200,
+      );
       if (art == null || art.isEmpty) {
+        if (mounted) setState(() => _artworkBytes = null);
         _fallback(song);
         return;
       }
-      final palette = await PaletteGenerator.fromImageProvider(MemoryImage(art),
-          size: const Size(200, 200), maximumColorCount: 8);
+      if (mounted) setState(() => _artworkBytes = art);
+      final palette = await PaletteGenerator.fromImageProvider(
+        MemoryImage(art),
+        size: const Size(200, 200),
+        maximumColorCount: 8,
+      );
       if (!mounted) return;
       setState(() {
         _glowColor = palette.vibrantColor?.color ??
@@ -132,6 +149,7 @@ class _PlayerContentState extends State<_PlayerContent>
 
         if (_lastSongId != song.id) {
           _lastSongId = song.id;
+          _artworkBytes = null;
           _extractPalette(song);
         }
 
@@ -170,8 +188,9 @@ class _PlayerContentState extends State<_PlayerContent>
   Widget _buildPortrait(BuildContext context, SongModel song) {
     final audio = context.read<AudioProvider>();
     final library = context.read<LibraryProvider>();
-    final isFav =
-        context.select<LibraryProvider, bool>((l) => l.isFavorite(song));
+    final isFav = context.select<LibraryProvider, bool>(
+      (l) => l.isFavorite(song),
+    );
 
     return SafeArea(
       child: LayoutBuilder(
@@ -185,39 +204,6 @@ class _PlayerContentState extends State<_PlayerContent>
               // ── Header fijo ──────────────────────────────────────────────
               _headerPortrait(context),
 
-              // ── Título + artista ─────────────────────────────────────────
-              Padding(
-                padding: EdgeInsets.symmetric(
-                    horizontal: 24, vertical: isCompact ? 4 : 0),
-                child: SizedBox(
-                  height: isVeryTight ? 36 : (isCompact ? 52 : 72),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(song.title ?? 'Pista desconocida',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              color: AppTheme.onSurface,
-                              fontSize:
-                                  isVeryTight ? 14 : (isCompact ? 18 : 22),
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.8)),
-                      if (!isVeryTight) const SizedBox(height: 4),
-                      if (!isVeryTight)
-                        Text(song.artist ?? 'Artista desconocido',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                color: AppTheme.onSurfaceVariant,
-                                fontSize: isCompact ? 12 : 14,
-                                fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ),
-
               // ── Vinilo / Cola ────────────────────────────────────────────
               if (isVeryTight)
                 SizedBox(
@@ -229,19 +215,44 @@ class _PlayerContentState extends State<_PlayerContent>
                   child: _buildVinylOrQueue(context, song, audio, isCompact),
                 ),
 
-              // ── Álbum ─────────────────────────────────────────────────────
-              if (!isCompact && !isVeryTight)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(song.album ?? 'Álbum desconocido',
+              // ── Título y autor debajo de la animación ────────────────────
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  isVeryTight ? 2 : 6,
+                  24,
+                  isCompact ? 4 : 8,
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      song.title ?? 'Pista desconocida',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: AppTheme.onSurface,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600)),
+                      style: TextStyle(
+                        color: AppTheme.onSurface,
+                        fontSize: isVeryTight ? 14 : (isCompact ? 17 : 20),
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    if (!isVeryTight) const SizedBox(height: 3),
+                    if (!isVeryTight)
+                      Text(
+                        song.artist ?? 'Artista desconocido',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppTheme.onSurfaceVariant,
+                          fontSize: isCompact ? 12 : 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
                 ),
+              ),
               SizedBox(height: isVeryTight ? 2 : (isCompact ? 4 : 12)),
 
               // ── Barra de progreso ─────────────────────────────────────────
@@ -261,9 +272,19 @@ class _PlayerContentState extends State<_PlayerContent>
               // ── Botones Like/Lista/Cola ───────────────────────────────────
               Padding(
                 padding: EdgeInsets.only(
-                    bottom: isVeryTight ? 4 : (isCompact ? 8 : 20)),
-                child: _actionButtons(context, song, isFav, library, audio,
-                    compact: isVeryTight || isCompact),
+                  // Reserva una franja inferior independiente para avisos.
+                  // Al crecer esta zona, todo el bloque de metadatos,
+                  // progreso y controles queda ligeramente más arriba.
+                  bottom: isVeryTight ? 14 : (isCompact ? 34 : 58),
+                ),
+                child: _actionButtons(
+                  context,
+                  song,
+                  isFav,
+                  library,
+                  audio,
+                  compact: isVeryTight || isCompact,
+                ),
               ),
             ],
           );
@@ -277,8 +298,12 @@ class _PlayerContentState extends State<_PlayerContent>
     );
   }
 
-  Widget _buildVinylOrQueue(BuildContext context, SongModel song,
-      AudioProvider audio, bool isCompact) {
+  Widget _buildVinylOrQueue(
+    BuildContext context,
+    SongModel song,
+    AudioProvider audio,
+    bool isCompact,
+  ) {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
       child: _showQueue
@@ -291,23 +316,38 @@ class _PlayerContentState extends State<_PlayerContent>
               key: const ValueKey('visualizer'),
               child: Selector<AudioProvider, bool>(
                 selector: (_, a) => a.isPlaying,
-                builder: (_, isPlaying, __) => LayoutBuilder(builder: (_, c) {
-                  final maxSize = (c.maxHeight * 0.92)
-                      .clamp(isCompact ? 120.0 : 200.0, 300.0);
-                  return Selector<AudioProvider, VisualizerStyle>(
-                    selector: (_, a) => a.animationStyle,
-                    builder: (_, style, __) => VisualizerFactory(
-                      style: style,
-                      isPlaying: isPlaying,
-                      albumId: song.albumId,
-                      glowColor: _glowColor,
-                      paletteDominant: _colorA,
-                      paletteMuted: _colorB,
-                      size: maxSize,
-                      fftStream: audio.visualizerService.fftStream,
-                    ),
-                  );
-                }),
+                builder: (_, isPlaying, __) => LayoutBuilder(
+                  builder: (_, c) {
+                    return Selector<AudioProvider, VisualizerStyle>(
+                      selector: (_, a) => a.animationStyle,
+                      builder: (_, style, __) {
+                        final available = c.biggest.shortestSide;
+                        final baseSize = (c.maxHeight * .92)
+                            .clamp(isCompact ? 120.0 : 200.0, 300.0)
+                            .toDouble();
+                        final maxSize = switch (style) {
+                          VisualizerStyle.cassette =>
+                            (available * .98).clamp(120.0, 420.0).toDouble(),
+                          VisualizerStyle.radialVisualizer => (baseSize * 1.15)
+                              .clamp(120.0, available * .98)
+                              .toDouble(),
+                          _ => baseSize,
+                        };
+                        return VisualizerFactory(
+                          style: style,
+                          isPlaying: isPlaying,
+                          albumId: song.albumId,
+                          glowColor: _glowColor,
+                          paletteDominant: _colorA,
+                          paletteMuted: _colorB,
+                          artworkBytes: _artworkBytes,
+                          size: maxSize,
+                          fftStream: audio.visualizerService.fftStream,
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ),
     );
@@ -319,103 +359,155 @@ class _PlayerContentState extends State<_PlayerContent>
   Widget _buildLandscape(BuildContext context, SongModel song) {
     final audio = context.read<AudioProvider>();
     final library = context.read<LibraryProvider>();
-    final isFav =
-        context.select<LibraryProvider, bool>((l) => l.isFavorite(song));
-    final screenH = MediaQuery.of(context).size.height;
-    final vinylSize = (screenH * 0.82).clamp(180.0, 260.0);
-
+    final isFav = context.select<LibraryProvider, bool>(
+      (l) => l.isFavorite(song),
+    );
     return SafeArea(
-      child: Row(children: [
-        // ── Izquierda: flecha + vinilo/cola ───────────────────────────
-        Expanded(
-          flex: 5,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 4, top: 4),
-                child: IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                      size: 32, color: AppTheme.onSurface),
-                ),
-              ),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: _showQueue
-                      ? _buildQueuePanel(audio, song)
-                      : Center(
-                          key: const ValueKey('visualizer'),
-                          child: Selector<AudioProvider, bool>(
-                            selector: (_, a) => a.isPlaying,
-                            builder: (_, isPlaying, __) =>
-                                Selector<AudioProvider, VisualizerStyle>(
-                              selector: (_, a) => a.animationStyle,
-                              builder: (_, style, __) => VisualizerFactory(
-                                style: style,
-                                isPlaying: isPlaying,
-                                albumId: song.albumId,
-                                glowColor: _glowColor,
-                                paletteDominant: _colorA,
-                                paletteMuted: _colorB,
-                                size: vinylSize,
-                                fftStream: audio.visualizerService.fftStream,
-                              ),
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // ── Derecha: controles ────────────────────────────────────────
-        Expanded(
-          flex: 6,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 20, 8),
+      child: Row(
+        children: [
+          // ── Izquierda: flecha + vinilo/cola ───────────────────────────
+          Expanded(
+            flex: 5,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  IconButton(
-                      onPressed: () => _showPlayerOptions(context),
-                      icon: const Icon(Icons.more_vert_rounded,
-                          color: AppTheme.onSurface, size: 22)),
-                ]),
-                const Spacer(),
-                // Título fijo 1 línea
-                Text(song.title ?? 'Pista desconocida',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppTheme.onSurface,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.8)),
-                const SizedBox(height: 4),
-                Text(song.artist ?? 'Artista desconocido',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppTheme.onSurfaceVariant,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                _actionButtons(context, song, isFav, library, audio,
-                    compact: true),
-                const Spacer(),
-                _progressBar(audio),
-                const SizedBox(height: 8),
-                _controls(audio),
-                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, top: 4),
+                  child: IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 32,
+                      color: AppTheme.onSurface,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final availableSide =
+                          constraints.maxWidth < constraints.maxHeight
+                              ? constraints.maxWidth
+                              : constraints.maxHeight;
+                      return ClipRect(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          child: _showQueue
+                              ? _buildQueuePanel(audio, song)
+                              : Center(
+                                  key: const ValueKey('visualizer'),
+                                  child: Selector<AudioProvider, bool>(
+                                    selector: (_, a) => a.isPlaying,
+                                    builder: (_, isPlaying, __) => Selector<
+                                        AudioProvider, VisualizerStyle>(
+                                      selector: (_, a) => a.animationStyle,
+                                      builder: (_, style, __) {
+                                        final baseSize = (availableSide - 24)
+                                            .clamp(96.0, 260.0)
+                                            .toDouble();
+                                        final visualizerSize = switch (style) {
+                                          VisualizerStyle.cassette =>
+                                            (availableSide * .98)
+                                                .clamp(96.0, 420.0)
+                                                .toDouble(),
+                                          VisualizerStyle.radialVisualizer =>
+                                            (baseSize * 1.15)
+                                                .clamp(
+                                                    96.0, availableSide * .98)
+                                                .toDouble(),
+                                          _ => baseSize,
+                                        };
+                                        return VisualizerFactory(
+                                          style: style,
+                                          isPlaying: isPlaying,
+                                          albumId: song.albumId,
+                                          glowColor: _glowColor,
+                                          paletteDominant: _colorA,
+                                          paletteMuted: _colorB,
+                                          artworkBytes: _artworkBytes,
+                                          size: visualizerSize,
+                                          fftStream:
+                                              audio.visualizerService.fftStream,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
           ),
-        ),
-      ]),
+
+          // ── Derecha: controles ────────────────────────────────────────
+          Expanded(
+            flex: 6,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 20, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        onPressed: () => _showPlayerOptions(context),
+                        tooltip: 'Más opciones',
+                        icon: const Icon(
+                          Icons.more_vert_rounded,
+                          color: AppTheme.onSurface,
+                          size: 22,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  // Título fijo 1 línea
+                  Text(
+                    song.title ?? 'Pista desconocida',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.onSurface,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    song.artist ?? 'Artista desconocido',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.onSurfaceVariant,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _actionButtons(
+                    context,
+                    song,
+                    isFav,
+                    library,
+                    audio,
+                    compact: true,
+                  ),
+                  const Spacer(),
+                  _progressBar(audio),
+                  const SizedBox(height: 8),
+                  _controls(audio),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -426,110 +518,146 @@ class _PlayerContentState extends State<_PlayerContent>
 
     return Container(
       key: const ValueKey('queue'),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-          child: Row(children: [
-            Text('Cola de reproducción',
-                style: TextStyle(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+            child: Row(
+              children: [
+                Text(
+                  'Cola de reproducción',
+                  style: TextStyle(
                     color: AppTheme.onSurface.withAlpha(180),
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5)),
-            const Spacer(),
-            // Contador posición actual
-            Text('${currentIdx + 1} / ${queue.length}',
-                style: TextStyle(
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const Spacer(),
+                // Contador posición actual
+                Text(
+                  '${currentIdx + 1} / ${queue.length}',
+                  style: TextStyle(
                     color: AppTheme.onSurfaceVariant.withAlpha(160),
-                    fontSize: 11)),
-          ]),
-        ),
-        Expanded(
-          child: ListView.builder(
-            controller: _queueScrollCtrl,
-            padding: EdgeInsets.zero,
-            itemCount: queue.length,
-            itemExtent: _queueItemHeight,
-            itemBuilder: (context, i) {
-              final song = queue[i];
-              final isCurrent = i == currentIdx;
-              return Container(
-                color: isCurrent
-                    ? AppTheme.primary.withAlpha(20)
-                    : Colors.transparent,
-                child: ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: SizedBox(
-                      width: 38,
-                      height: 38,
-                      child: QueryArtworkWidget(
-                        id: song.id,
-                        type: ArtworkType.AUDIO,
-                        size: 256,
-                        quality: 90,
-                        artworkFit: BoxFit.cover,
-                        artworkWidth: 38,
-                        artworkHeight: 38,
-                        artworkQuality: FilterQuality.high,
-                        keepOldArtwork: true,
-                        nullArtworkWidget: Container(
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              controller: _queueScrollCtrl,
+              padding: EdgeInsets.zero,
+              itemCount: queue.length,
+              itemExtent: _queueItemHeight,
+              itemBuilder: (context, i) {
+                final song = queue[i];
+                final isCurrent = i == currentIdx;
+                return Container(
+                  color: isCurrent
+                      ? AppTheme.primary.withAlpha(20)
+                      : Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: SizedBox(
+                        width: 38,
+                        height: 38,
+                        child: QueryArtworkWidget(
+                          id: song.id,
+                          type: ArtworkType.AUDIO,
+                          size: 256,
+                          quality: 90,
+                          artworkFit: BoxFit.cover,
+                          artworkWidth: 38,
+                          artworkHeight: 38,
+                          artworkQuality: FilterQuality.high,
+                          keepOldArtwork: true,
+                          nullArtworkWidget: Container(
                             color: AppTheme.surfaceContainerHigh,
-                            child: const Icon(Icons.music_note_rounded,
-                                color: AppTheme.onSurfaceVariant, size: 16)),
+                            child: const Icon(
+                              Icons.music_note_rounded,
+                              color: AppTheme.onSurfaceVariant,
+                              size: 16,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  title: Text(song.title ?? '',
+                    title: Text(
+                      song.title ?? '',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                          color:
-                              isCurrent ? AppTheme.primary : AppTheme.onSurface,
-                          fontSize: 13,
-                          fontWeight:
-                              isCurrent ? FontWeight.w800 : FontWeight.w500)),
-                  subtitle: Text(song.artist ?? '',
+                        color:
+                            isCurrent ? AppTheme.primary : AppTheme.onSurface,
+                        fontSize: 13,
+                        fontWeight:
+                            isCurrent ? FontWeight.w800 : FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: Text(
+                      song.artist ?? '',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          fontSize: 11, color: AppTheme.onSurfaceVariant)),
-                  trailing: isCurrent
-                      ? const Icon(Icons.equalizer_rounded,
-                          color: AppTheme.primary, size: 16)
-                      : null,
-                  onTap: () => audio.playSong(song, queue, i),
-                ),
-              );
-            },
+                        fontSize: 11,
+                        color: AppTheme.onSurfaceVariant,
+                      ),
+                    ),
+                    trailing: isCurrent
+                        ? const Icon(
+                            Icons.equalizer_rounded,
+                            color: AppTheme.primary,
+                            size: 16,
+                          )
+                        : null,
+                    onTap: () => audio.playSong(song, queue, i),
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 
   // ── Header portrait ───────────────────────────────────────────────────────
   Widget _headerPortrait(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-        child: Row(children: [
-          IconButton(
+        child: Row(
+          children: [
+            IconButton(
               onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                  size: 32, color: AppTheme.onSurface)),
-          const Expanded(
-              child: Text('ACARMusic',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: AppTheme.onSurface,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800))),
-          IconButton(
+              icon: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 32,
+                color: AppTheme.onSurface,
+              ),
+            ),
+            const Expanded(
+              child: Text(
+                'ACARMusic',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppTheme.onSurface,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            IconButton(
               onPressed: () => _showPlayerOptions(context),
               icon: const Icon(Icons.more_vert_rounded,
-                  color: AppTheme.onSurface)),
-        ]),
+                  color: AppTheme.onSurface),
+            ),
+          ],
+        ),
       );
 
   // ── Barra de progreso ─────────────────────────────────────────────────────
@@ -544,21 +672,28 @@ class _PlayerContentState extends State<_PlayerContent>
             return Column(
               children: [
                 Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(audio.formatDuration(pos),
-                          style: const TextStyle(
-                              color: AppTheme.onSurfaceVariant,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1)),
-                      Text(audio.formatDuration(dur),
-                          style: const TextStyle(
-                              color: AppTheme.onSurfaceVariant,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1)),
-                    ]),
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      audio.formatDuration(pos),
+                      style: const TextStyle(
+                        color: AppTheme.onSurfaceVariant,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    Text(
+                      audio.formatDuration(dur),
+                      style: const TextStyle(
+                        color: AppTheme.onSurfaceVariant,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
@@ -571,8 +706,9 @@ class _PlayerContentState extends State<_PlayerContent>
                     overlayShape: SliderComponentShape.noOverlay,
                   ),
                   child: Slider(
-                      value: progress.toDouble(),
-                      onChanged: (v) => audio.seekTo(v)),
+                    value: progress.toDouble(),
+                    onChanged: (v) => audio.seekTo(v),
+                  ),
                 ),
               ],
             );
@@ -581,7 +717,9 @@ class _PlayerContentState extends State<_PlayerContent>
       );
 
   // ── Controles de reproducción ─────────────────────────────────────────────
-  Widget _controls(AudioProvider audio) =>
+  Widget _controls(
+    AudioProvider audio,
+  ) =>
       Selector<AudioProvider, (bool, bool, AppRepeatState)>(
         selector: (_, a) => (a.isPlaying, a.isShuffleOn, a.repeatMode),
         builder: (context, state, _) {
@@ -608,11 +746,13 @@ class _PlayerContentState extends State<_PlayerContent>
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        Icon(Icons.shuffle_rounded,
-                            color: shuffleOn
-                                ? AppTheme.primary
-                                : AppTheme.onSurfaceVariant,
-                            size: 26),
+                        Icon(
+                          Icons.shuffle_rounded,
+                          color: shuffleOn
+                              ? AppTheme.primary
+                              : AppTheme.onSurfaceVariant,
+                          size: 26,
+                        ),
                         if (!shuffleOn)
                           Positioned(
                             child: Transform.rotate(
@@ -639,8 +779,11 @@ class _PlayerContentState extends State<_PlayerContent>
                 scale: 0.82,
                 child: const Padding(
                   padding: EdgeInsets.all(8),
-                  child: Icon(Icons.skip_previous_rounded,
-                      color: AppTheme.onSurface, size: 36),
+                  child: Icon(
+                    Icons.skip_previous_rounded,
+                    color: AppTheme.onSurface,
+                    size: 36,
+                  ),
                 ),
               ),
               // ── Play / Pause con AnimatedSwitcher ─────────────────────
@@ -656,9 +799,10 @@ class _PlayerContentState extends State<_PlayerContent>
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                          color: _glowColor.withAlpha(80),
-                          blurRadius: 24,
-                          spreadRadius: 4)
+                        color: _glowColor.withAlpha(80),
+                        blurRadius: 24,
+                        spreadRadius: 4,
+                      ),
                     ],
                   ),
                   child: AnimatedSwitcher(
@@ -692,8 +836,11 @@ class _PlayerContentState extends State<_PlayerContent>
                 scale: 0.82,
                 child: const Padding(
                   padding: EdgeInsets.all(8),
-                  child: Icon(Icons.skip_next_rounded,
-                      color: AppTheme.onSurface, size: 36),
+                  child: Icon(
+                    Icons.skip_next_rounded,
+                    color: AppTheme.onSurface,
+                    size: 36,
+                  ),
                 ),
               ),
               // ── Repeat con glow ───────────────────────────────────────
@@ -730,11 +877,16 @@ class _PlayerContentState extends State<_PlayerContent>
 
   // ── 3 botones: Like | Lista | Cola ────────────────────────────────────────
   // Cola abre el panel con scroll automático a la canción actual
-  Widget _actionButtons(BuildContext context, SongModel song, bool isFav,
-      LibraryProvider library, AudioProvider audio,
-      {bool compact = false}) {
+  Widget _actionButtons(
+    BuildContext context,
+    SongModel song,
+    bool isFav,
+    LibraryProvider library,
+    AudioProvider audio, {
+    bool compact = false,
+  }) {
     final iconSize = compact ? 22.0 : 24.0;
-    final spacing = compact ? 40.0 : 48.0;
+    final spacing = compact ? 22.0 : 30.0;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -744,6 +896,7 @@ class _PlayerContentState extends State<_PlayerContent>
           label: 'LIKE',
           color: isFav ? Colors.pinkAccent : AppTheme.onSurfaceVariant,
           size: iconSize,
+          burstOnTap: !isFav,
           onTap: () => isFav
               ? library.removeFromFavorites(song)
               : library.addToFavorites(song),
@@ -771,7 +924,74 @@ class _PlayerContentState extends State<_PlayerContent>
             }
           },
         ),
+        SizedBox(width: spacing),
+        _ActionBtn(
+          icon: Icons.speed_rounded,
+          label: '${audio.playbackSpeed}X',
+          color: AppTheme.onSurfaceVariant,
+          size: iconSize,
+          onTap: () => _showPlaybackSpeedSheet(context, audio),
+        ),
       ],
+    );
+  }
+
+  void _showPlaybackSpeedSheet(BuildContext context, AudioProvider audio) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerHigh,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.outline,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                'Velocidad de reproducción',
+                style: TextStyle(
+                  color: AppTheme.onSurface,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...[0.5, 1.0, 1.5, 2.0].map(
+                (speed) => ListTile(
+                  dense: true,
+                  leading: const Icon(
+                    Icons.speed_rounded,
+                    color: AppTheme.primary,
+                  ),
+                  title: Text(
+                    '${speed}x',
+                    style: const TextStyle(color: AppTheme.onSurface),
+                  ),
+                  trailing: audio.playbackSpeed == speed
+                      ? const Icon(Icons.check_rounded, color: AppTheme.primary)
+                      : null,
+                  onTap: () async {
+                    await audio.setPlaybackSpeed(speed);
+                    if (sheetContext.mounted) Navigator.pop(sheetContext);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -780,11 +1000,17 @@ class _PlayerContentState extends State<_PlayerContent>
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * .92,
+      ),
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) {
         return SafeArea(
           child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -794,32 +1020,43 @@ class _PlayerContentState extends State<_PlayerContent>
                   height: 4,
                   margin: const EdgeInsets.only(top: 12, bottom: 4),
                   decoration: BoxDecoration(
-                      color: AppTheme.outline,
-                      borderRadius: BorderRadius.circular(2)),
+                    color: AppTheme.outline,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text('Más opciones',
-                      style: TextStyle(
-                          color: AppTheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16)),
+                  child: Text(
+                    'Más opciones',
+                    style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
                 const Divider(height: 1, color: AppTheme.surfaceVariant),
                 // Animaciones
                 ListTile(
-                  leading: const Icon(Icons.animation_rounded,
-                      color: AppTheme.primary),
-                  title: const Text('Animaciones',
-                      style: TextStyle(
-                          color: AppTheme.onSurface,
-                          fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.animation_rounded,
+                    color: AppTheme.primary,
+                  ),
+                  title: const Text(
+                    'Animaciones',
+                    style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   subtitle: Selector<AudioProvider, VisualizerStyle>(
                     selector: (_, a) => a.animationStyle,
                     builder: (_, style, __) => Text(
                       style.displayName,
                       style: const TextStyle(
-                          color: AppTheme.onSurfaceVariant, fontSize: 11),
+                        color: AppTheme.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                   onTap: () {
@@ -829,12 +1066,17 @@ class _PlayerContentState extends State<_PlayerContent>
                 ),
                 // Ecualizador → abre app de sonido del sistema
                 ListTile(
-                  leading: const Icon(Icons.graphic_eq_rounded,
-                      color: AppTheme.primary),
-                  title: const Text('Calidad y efectos de sonido',
-                      style: TextStyle(
-                          color: AppTheme.onSurface,
-                          fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.graphic_eq_rounded,
+                    color: AppTheme.primary,
+                  ),
+                  title: const Text(
+                    'Calidad y efectos de sonido',
+                    style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(ctx);
                     _openSystemEqualizer(context);
@@ -842,37 +1084,50 @@ class _PlayerContentState extends State<_PlayerContent>
                 ),
                 // Temporizador de sueño — funcional, igual que en Ajustes
                 ListTile(
-                  leading: const Icon(Icons.bedtime_rounded,
-                      color: AppTheme.primary),
-                  title: const Text('Temporizador de sueño',
-                      style: TextStyle(
-                          color: AppTheme.onSurface,
-                          fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.bedtime_rounded,
+                    color: AppTheme.primary,
+                  ),
+                  title: const Text(
+                    'Temporizador de sueño',
+                    style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   subtitle: Selector<AudioProvider, int>(
                     selector: (_, a) => a.sleepTimerMinutes,
                     builder: (_, minutes, __) => Text(
                       minutes > 0 ? '$minutes min activo' : 'Desactivado',
                       style: TextStyle(
-                          color: minutes > 0
-                              ? AppTheme.primary
-                              : AppTheme.onSurfaceVariant,
-                          fontSize: 11),
+                        color: minutes > 0
+                            ? AppTheme.primary
+                            : AppTheme.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                   onTap: () {
                     Navigator.pop(ctx);
                     _showSleepTimerSheet(
-                        context, context.read<AudioProvider>());
+                      context,
+                      context.read<AudioProvider>(),
+                    );
                   },
                 ),
                 // Ajustes
                 ListTile(
-                  leading: const Icon(Icons.settings_rounded,
-                      color: AppTheme.primary),
-                  title: const Text('Ajustes',
-                      style: TextStyle(
-                          color: AppTheme.onSurface,
-                          fontWeight: FontWeight.w600)),
+                  leading: const Icon(
+                    Icons.settings_rounded,
+                    color: AppTheme.primary,
+                  ),
+                  title: const Text(
+                    'Ajustes',
+                    style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(ctx);
                     _showComingSoon(context, 'Ajustes desde el reproductor');
@@ -897,8 +1152,13 @@ class _PlayerContentState extends State<_PlayerContent>
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * .92,
+      ),
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => AnimationStyleSheet(audio: audio),
     );
   }
@@ -908,16 +1168,24 @@ class _PlayerContentState extends State<_PlayerContent>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceContainerHigh,
-        title: Row(children: [
-          const Icon(Icons.build_circle_rounded,
-              color: AppTheme.primary, size: 22),
-          const SizedBox(width: 8),
-          Text(feature,
+        title: Row(
+          children: [
+            const Icon(
+              Icons.build_circle_rounded,
+              color: AppTheme.primary,
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              feature,
               style: const TextStyle(
-                  color: AppTheme.onSurface,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16)),
-        ]),
+                color: AppTheme.onSurface,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
         content: const Text(
           'Estamos desarrollando esta función.\n¡Pronto estará disponible!',
           style: TextStyle(color: AppTheme.onSurfaceVariant),
@@ -925,9 +1193,13 @@ class _PlayerContentState extends State<_PlayerContent>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Entendido',
-                style: TextStyle(
-                    color: AppTheme.primary, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Entendido',
+              style: TextStyle(
+                color: AppTheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -939,45 +1211,65 @@ class _PlayerContentState extends State<_PlayerContent>
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
       isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * .92,
+      ),
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => SleepTimerSheet(audio: audio),
     );
   }
 
   void _addToPlaylistSheet(
-      BuildContext context, LibraryProvider library, SongModel song) {
+    BuildContext context,
+    LibraryProvider library,
+    SongModel song,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceContainerHigh,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * .92,
+      ),
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(top: 12, bottom: 4),
-                decoration: BoxDecoration(
-                    color: AppTheme.outline,
-                    borderRadius: BorderRadius.circular(2))),
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('Agregar a Lista',
-                  style: TextStyle(
-                      color: AppTheme.onSurface,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16)),
+              child: Text(
+                'Agregar a Lista',
+                style: TextStyle(
+                  color: AppTheme.onSurface,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
             ),
             const Divider(height: 1, color: AppTheme.surfaceVariant),
             if (library.playlists.isEmpty)
               const Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text('Crea una lista primero en la pestaña Listas',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.onSurfaceVariant)))
+                padding: EdgeInsets.all(32),
+                child: Text(
+                  'Crea una lista primero en la pestaña Listas',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.onSurfaceVariant),
+                ),
+              )
             else
               Flexible(
                 child: ListView.builder(
@@ -986,15 +1278,18 @@ class _PlayerContentState extends State<_PlayerContent>
                   itemBuilder: (_, i) {
                     final p = library.playlists[i];
                     return ListTile(
-                      leading: const Icon(Icons.playlist_add_rounded,
-                          color: AppTheme.primary),
-                      title: Text(p.name,
-                          style: const TextStyle(color: AppTheme.onSurface)),
+                      leading: const Icon(
+                        Icons.playlist_add_rounded,
+                        color: AppTheme.primary,
+                      ),
+                      title: Text(
+                        p.name,
+                        style: const TextStyle(color: AppTheme.onSurface),
+                      ),
                       onTap: () {
                         library.addSongToPlaylist(p.id, song.id);
                         Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Agregado a ${p.name}')));
+                        _showPlaylistAddedMessage(context, p.name);
                       },
                     );
                   },
@@ -1006,34 +1301,191 @@ class _PlayerContentState extends State<_PlayerContent>
       ),
     );
   }
+
+  void _showPlaylistAddedMessage(BuildContext context, String playlistName) {
+    final mediaQuery = MediaQuery.of(context);
+    final isLandscape = mediaQuery.orientation == Orientation.landscape;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(milliseconds: 1700),
+          margin: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            // En vertical ocupa la franja reservada bajo las acciones; no
+            // cubre el progreso, los controles ni los botones inferiores.
+            bottom: isLandscape ? 92 : 16,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.playlist_add_check_rounded,
+                color: AppTheme.primary,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Agregado a $playlistName',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
 }
 
-class _ActionBtn extends StatelessWidget {
+class _ActionBtn extends StatefulWidget {
   final IconData icon;
   final String label;
   final Color color;
   final double size;
+  final bool burstOnTap;
   final VoidCallback onTap;
   const _ActionBtn({
     required this.icon,
     required this.label,
     required this.color,
     required this.size,
+    this.burstOnTap = false,
     required this.onTap,
   });
+
+  @override
+  State<_ActionBtn> createState() => _ActionBtnState();
+}
+
+class _ActionBtnState extends State<_ActionBtn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _burstController;
+
+  @override
+  void initState() {
+    super.initState();
+    _burstController = AnimationController(
+      vsync: this,
+      // Más lento para que el crecimiento y el rastro sean visibles.
+      duration: const Duration(milliseconds: 1150),
+    );
+  }
+
+  @override
+  void dispose() {
+    _burstController.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    widget.onTap();
+    if (widget.burstOnTap) {
+      _burstController.forward(from: 0);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: 1.34,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.34,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 45,
+      ),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 25),
+    ]).animate(_burstController);
+
     return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: size),
-          const SizedBox(height: 4),
-          Text(label,
+      onTap: _handleTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedBuilder(
+        animation: _burstController,
+        builder: (context, child) => SizedBox(
+          width: widget.size + 34,
+          height: widget.size + 42,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              for (var i = 0; i < 7; i++)
+                _HeartTrail(
+                  index: i,
+                  progress: _burstController.value,
+                  color: widget.color,
+                ),
+              Transform.scale(scale: scale.value, child: child),
+            ],
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(widget.icon, color: widget.color, size: widget.size),
+            const SizedBox(height: 4),
+            Text(
+              widget.label,
               style: TextStyle(
-                  color: color, fontSize: 9, fontWeight: FontWeight.w600)),
-        ],
+                color: widget.color,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeartTrail extends StatelessWidget {
+  final int index;
+  final double progress;
+  final Color color;
+
+  const _HeartTrail({
+    required this.index,
+    required this.progress,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final start = 0.04 + index * 0.045;
+    final end = (start + 0.56).clamp(0.0, 1.0).toDouble();
+    final local =
+        ((progress - start) / (end - start)).clamp(0.0, 1.0).toDouble();
+    final opacity = progress < start
+        ? 0.0
+        : (1.0 - Curves.easeIn.transform(local)).clamp(0.0, 1.0).toDouble();
+    final direction = index.isEven ? -1.0 : 1.0;
+    final dx = direction * (7.0 + (index / 2).ceil() * 7.0) +
+        math.sin(index * 1.7) * 4.0;
+    final dy = -10.0 - local * (34.0 + index * 3.5);
+    final size = 7.5 + index * 0.9 + local * 1.5;
+
+    return Opacity(
+      opacity: opacity,
+      child: Transform.translate(
+        offset: Offset(dx, dy),
+        child: Icon(Icons.favorite_rounded, color: color, size: size),
       ),
     );
   }
