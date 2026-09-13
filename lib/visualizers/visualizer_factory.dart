@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
 import 'animation_style.dart';
 import 'bar/bar_visualizer.dart';
 import 'radial/radial_visualizer.dart';
 import 'minimalist/minimalist_visualizer.dart';
 import 'vinyl/vinyl_record.dart';
+import 'cassette/cassette_visualizer.dart';
 
 class VisualizerFactory extends StatefulWidget {
   final VisualizerStyle style;
@@ -14,6 +16,7 @@ class VisualizerFactory extends StatefulWidget {
   final Color paletteMuted;
   final double size;
   final Stream<List<double>>? fftStream;
+  final Uint8List? artworkBytes;
 
   const VisualizerFactory({
     super.key,
@@ -25,6 +28,7 @@ class VisualizerFactory extends StatefulWidget {
     this.paletteMuted = const Color(0xFF0D0A20),
     this.size = 260,
     this.fftStream,
+    this.artworkBytes,
   });
 
   @override
@@ -32,7 +36,8 @@ class VisualizerFactory extends StatefulWidget {
 }
 
 class _VisualizerFactoryState extends State<VisualizerFactory> {
-  late final Stream<List<double>> _fallbackStream = Stream<List<double>>.periodic(
+  late final Stream<List<double>> _fallbackStream =
+      Stream<List<double>>.periodic(
     const Duration(seconds: 1),
     (_) => List.filled(32, 0.0),
   );
@@ -62,6 +67,7 @@ class _VisualizerFactoryState extends State<VisualizerFactory> {
           child: RadialVisualizer(
             fftStream: widget.fftStream ?? _fallbackStream,
             glowColor: widget.glowColor,
+            albumId: widget.albumId,
           ),
         );
       case VisualizerStyle.minimalist:
@@ -70,6 +76,14 @@ class _VisualizerFactoryState extends State<VisualizerFactory> {
           isPlaying: widget.isPlaying,
           size: widget.size,
           glowColor: widget.glowColor,
+        );
+      case VisualizerStyle.cassette:
+        return CassetteVisualizer(
+          isPlaying: widget.isPlaying,
+          size: widget.size,
+          dominantColor: widget.paletteDominant,
+          mutedColor: widget.paletteMuted,
+          artworkBytes: widget.artworkBytes,
         );
     }
   }

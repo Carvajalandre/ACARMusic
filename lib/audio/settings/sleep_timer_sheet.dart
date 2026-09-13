@@ -12,22 +12,27 @@ class SleepTimerSheet extends StatelessWidget {
     final presets = [15, 30, 45, 60, 90, 120];
     final customCtrl = TextEditingController();
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    return SingleChildScrollView(
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 36, height: 4,
+            width: 36,
+            height: 4,
             margin: const EdgeInsets.only(top: 12, bottom: 4),
             decoration: BoxDecoration(
-                color: AppTheme.outline, borderRadius: BorderRadius.circular(2)),
+                color: AppTheme.outline,
+                borderRadius: BorderRadius.circular(2)),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Text('Temporizador de sueño',
                 style: TextStyle(
-                    color: AppTheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800)),
+                    color: AppTheme.onSurface,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800)),
           ),
           ListTile(
             title: const Text('Desactivado',
@@ -44,7 +49,8 @@ class SleepTimerSheet extends StatelessWidget {
           ...presets.map((min) => ListTile(
                 title: Text('$min minutos',
                     style: const TextStyle(
-                        color: AppTheme.onSurface, fontWeight: FontWeight.w600)),
+                        color: AppTheme.onSurface,
+                        fontWeight: FontWeight.w600)),
                 trailing: audio.sleepTimerMinutes == min
                     ? const Icon(Icons.check_rounded, color: AppTheme.primary)
                     : null,

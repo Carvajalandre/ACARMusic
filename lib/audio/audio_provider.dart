@@ -33,6 +33,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _isShuffleOn = false;
   AppRepeatState _repeatMode = AppRepeatState.off;
   bool _isPlaying = false;
+  double _playbackSpeed = 1.0;
 
   final List<int> _shuffleHistory = [];
   static const int _maxHistory = 50;
@@ -55,6 +56,8 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _changingTrack = false;
   bool _toggleInFlight = false;
+  Completer<void>? _trackChangeCompleter;
+  static const Duration _trackOperationTimeout = Duration(seconds: 12);
 
   VisualizerStyle _animationStyle = VisualizerStyle.vinyl;
   final VisualizerService visualizerService = VisualizerService();
@@ -75,10 +78,22 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
   List<SongModel> get queue => _queue;
   int get currentIndex => _currentIndex;
   bool get isPlaying => _isPlaying;
+  double get playbackSpeed => _playbackSpeed;
   bool get isShuffleOn => _isShuffleOn;
   AppRepeatState get repeatMode => _repeatMode;
   Duration get position => positionNotifier.value;
   Duration get duration => durationNotifier.value;
+
+  Future<void> setPlaybackSpeed(double speed) async {
+    final normalized = [0.5, 1.0, 1.5, 2.0].firstWhere(
+      (value) => value == speed,
+      orElse: () => 1.0,
+    );
+    _playbackSpeed = normalized;
+    await _player.setSpeed(normalized);
+    notifyListeners();
+    await _saveSession();
+  }
 
   int? get androidAudioSessionId => _player.androidAudioSessionId;
 
@@ -142,8 +157,17 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> playSong(SongModel song, List<SongModel> newQueue, int index,
       {bool addToHistory = true}) async {
-    if (_changingTrack) return;
+    // No se descartan los toques mientras se prepara otra pista. El bloqueo
+    // anterior dejaba toda la navegación inutilizada si setFilePath tardaba
+    // indefinidamente; ahora la siguiente petición espera y se ejecuta.
+    while (_changingTrack) {
+      final pendingChange = _trackChangeCompleter;
+      if (pendingChange == null) break;
+      await pendingChange.future;
+    }
     _changingTrack = true;
+    final changeCompleter = Completer<void>();
+    _trackChangeCompleter = changeCompleter;
 
     _handler.suppressBroadcast = true;
 
@@ -193,20 +217,24 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
 
       await logStep('4_update_media_session');
       if (queueChanged) {
-        await _handler.setQueueAndCurrentSong(newQueue, index);
+        await _handler
+            .setQueueAndCurrentSong(newQueue, index)
+            .timeout(_trackOperationTimeout);
       } else {
-        await _handler.updateCurrentSong(song, index);
+        await _handler
+            .updateCurrentSong(song, index)
+            .timeout(_trackOperationTimeout);
       }
 
       await logStep('5_setFilePath');
-      await _player.setFilePath(path);
+      await _player.setFilePath(path).timeout(_trackOperationTimeout);
 
       await logStep('6_enable_broadcast');
       _handler.suppressBroadcast = false;
       _handler.refreshPlaybackState();
 
       await logStep('7_play');
-      await _player.play();
+      await _player.play().timeout(_trackOperationTimeout);
 
       await logStep('8_done');
       _isPlaying = true;
@@ -232,6 +260,10 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
       _handler.suppressBroadcast = false;
       _changingTrack = false;
+      if (!changeCompleter.isCompleted) changeCompleter.complete();
+      if (identical(_trackChangeCompleter, changeCompleter)) {
+        _trackChangeCompleter = null;
+      }
       notifyListeners();
       _manageVisualizer();
     }
@@ -481,6 +513,8 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
     _currentIndex = restoredIndex >= 0 ? restoredIndex : 0;
     _isShuffleOn = map['isShuffleOn'] as bool? ?? false;
     _repeatMode = _repeatModeFromName(map['repeatMode'] as String?);
+    _playbackSpeed = (map['playbackSpeed'] as num?)?.toDouble() ?? 1.0;
+    await _player.setSpeed(_playbackSpeed);
     _syncHandlerPlaybackOptions();
     notifyListeners();
 
@@ -540,6 +574,7 @@ class AudioProvider extends ChangeNotifier with WidgetsBindingObserver {
         'wasPlaying': _player.playing,
         'isShuffleOn': _isShuffleOn,
         'repeatMode': _repeatMode.name,
+        'playbackSpeed': _playbackSpeed,
         'queueIds': _queue.map((s) => s.id).toList(),
         'queuePaths': _queue.map((s) => s.data).toList(),
       }),

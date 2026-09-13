@@ -243,12 +243,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content:
-                        Text('Feature requires additional implementation')),
+              library.removeSongFromPlaylist(
+                widget.playlistId.toString(),
+                song.id,
               );
+              Navigator.pop(ctx);
+              setState(() {
+                _songsFuture = library.getSongsFromPlaylist(widget.playlistId);
+              });
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Canción eliminada de la lista'),
+              ));
             },
             child: Text('Remove',
                 style: GoogleFonts.manrope(

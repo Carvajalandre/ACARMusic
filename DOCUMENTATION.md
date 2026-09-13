@@ -1,563 +1,407 @@
-﻿# ACARMusic Documentación Técnica (Parte 1)
+# ACARMusic — documentación técnica
 
-## Resumen del Proyecto
+Documentación del estado actual del proyecto Flutter. Las rutas de este archivo
+son relativas a la raíz del repositorio (`ACARMusic/`). Se actualizó a partir
+del código presente en el checkout y no describe una versión histórica.
 
-**ACARMusic** es un reproductor de música local para Android, desarrollado en Flutter, inspirado en Samsung Music. Permite reproducir pistas almacenadas en el dispositivo con soporte completo de audio en segundo plano, notificaciones del sistema, y gestión de playlists personalizadas. Es open source, personalizable y optimizado para rendimiento y baterÃ­a.
+## Resumen
 
-- **Versión:** 1.0.0+1  
-- **SDK Flutter:** `>=3.3.0 <4.0.0`  
-- **Dispositivo de prueba:** Samsung S20 FE  
-- **Rama activa:** `CarvaNew`  
-- **Tema:** Oscuro fijo (Material 3)
+ACARMusic es un reproductor de música local para Android, construido con
+Flutter. Lee la biblioteca multimedia del dispositivo, reproduce archivos
+locales, mantiene audio en segundo plano y ofrece favoritos, historial,
+conteo de reproducciones y playlists personalizadas.
 
----
+Características implementadas:
 
-## Arquitectura General
+- Biblioteca de pistas, álbumes, artistas y carpetas.
+- Búsqueda por título, artista y álbum.
+- Reproducción con cola, anterior/siguiente, shuffle y repeat (`off`, `all`,
+  `one`).
+- Controles de Android: notificación, pantalla de bloqueo, auriculares y
+  Bluetooth mediante `audio_service`.
+- Mini reproductor y reproductor completo en portrait y landscape.
+- Playlists personalizadas con agregar, quitar, renombrar, eliminar y
+  reordenar por drag & drop.
+- Favoritos, recién reproducidas, recién añadidas y más escuchadas.
+- Temporizador de sueño.
+- Cuatro visualizadores: disco de vinilo, barras, radial y minimalista.
+- Tema oscuro Material 3 con tipografía Manrope incluida localmente.
+- Registro del último error en `SharedPreferences` para diagnóstico en el
+  dispositivo.
 
-```
-main.dart          â†’ Punto de entrada, permisos, AudioService, providers
-app.dart           â†’ Widget raÃ­z, TickerMode (optimiza baterÃ­a en background)
-â”‚
-â”œâ”€â”€ audio/
-â”‚   â””â”€â”€ audio_handler.dart     â†’ Handler de AudioService (notificaciones, MediaSession)
-â”‚
-â”œâ”€â”€ models/
-â”‚   â””â”€â”€ custom_playlist.dart   â†’ Modelo de datos de playlist personalizada
-â”‚
-â”œâ”€â”€ providers/
-â”‚   â”œâ”€â”€ audio_provider.dart    â†’ Estado de reproducciÃ³n (cola, shuffle, repeat, sesiÃ³n)
-â”‚   â””â”€â”€ library_provider.dart  â†’ Biblioteca de mÃºsica, favoritos, recientes, playlists
-â”‚
-â”œâ”€â”€ screens/
-â”‚   â”œâ”€â”€ home_screen.dart           â†’ NavegaciÃ³n principal (BottomNav / Rail)
-â”‚   â”œâ”€â”€ library_screen.dart        â†’ Biblioteca (Pistas / Ãlbumes / Artistas / Carpetas)
-â”‚   â”œâ”€â”€ explore_screen.dart        â†’ Explorar, bÃºsqueda, gÃ©neros, recientes
-â”‚   â”œâ”€â”€ playlists_screen.dart      â†’ Listas (favoritos, recientes, personalizadas)
-â”‚   â”œâ”€â”€ song_list_screen.dart      â†’ Lista de canciones reutilizable (drag & drop)
-â”‚   â”œâ”€â”€ playlist_detail_screen.dartâ†’ Detalle de playlist (versiÃ³n legacy)
-â”‚   â”œâ”€â”€ player_screen.dart         â†’ Pantalla completa del reproductor
-â”‚   â””â”€â”€ settings_screen.dart       â†’ Ajustes, temporizador de sueÃ±o, ecualizador
-â”‚
-â”œâ”€â”€ theme/
-â”‚   â””â”€â”€ app_theme.dart             â†’ Paleta de colores y ThemeData
-â”‚
-â””â”€â”€ widgets/
-    â”œâ”€â”€ mini_player.dart           â†’ Mini reproductor persistente (bottom)
-    â”œâ”€â”€ track_tile.dart            â†’ Tile reutilizable para pistas
-    â”œâ”€â”€ vinyl_record.dart          â†’ Disco de vinilo animado
-    â””â”€â”€ permission_screen.dart     â†’ Pantalla de solicitud de permisos
-```
+Estado conocido del producto:
 
----
+- El proyecto contiene targets Flutter para Android, iOS, Web, Windows, macOS
+  y Linux, pero las funciones de biblioteca local, audio_service, ecualizador
+  y visualizador nativo están implementadas principalmente para Android.
+- La pantalla de permisos conserva textos en inglés (`Grant Permission` y
+  `Music Library Access`).
+- El selector llamado `Tema oscuro` en Ajustes es visual/local; la app siempre
+  inicia con `ThemeMode.dark`.
+- Las tarjetas de géneros de Explorar son visuales y no aplican un filtro real
+  por género.
+- El ecualizador depende de que el dispositivo Android tenga un panel de
+  efectos de audio disponible; si no existe, la app muestra un aviso.
+- El test incluido es un placeholder y no contiene aserciones funcionales.
 
-## Dependencias (`pubspec.yaml`)
+## Identificación del checkout
 
-**Ubicación:** `c:\Users\Andres\Desktop\Desarrollo\ACAR\ACARMusic\v2\ACARMusic\pubspec.yaml`
-
-| Paquete | VersiÃ³n | Uso |
-|---|---|---|
-| `just_audio` | ^0.9.40 | Motor de reproducciÃ³n de audio |
-| `audio_service` | ^0.18.15 | Servicio en segundo plano + notificaciÃ³n MediaSession |
-| `audio_session` | ^0.1.21 | GestiÃ³n de sesiÃ³n de audio del sistema |
-| `on_audio_query` | ^2.9.0 | Consulta de archivos multimedia locales |
-| `provider` | ^6.1.2 | Manejo de estado (ChangeNotifier) |
-| `permission_handler` | ^11.3.1 | Solicitud de permisos en runtime |
-| `shared_preferences` | ^2.3.2 | Persistencia local (favoritos, sesiÃ³n, playlists) |
-| `google_fonts` | ^6.2.1 | TipografÃ­a Manrope |
-| `palette_generator` | ^0.3.3+3 | ExtracciÃ³n de colores de portadas de Ã¡lbumes |
-
----
-
-## Archivos Pendientes de Commit (rama `CarvaNew`)
-
-> Archivos modificados sin hacer commit aÃºn:
-
-| Archivo | Ruta completa |
+| Dato | Valor actual |
 |---|---|
-| `app.dart` | `lib/app.dart` |
-| `audio_handler.dart` | `lib/audio/audio_handler.dart` |
-| `main.dart` | `lib/main.dart` |
-| `audio_provider.dart` | `lib/providers/audio_provider.dart` |
-| `library_provider.dart` | `lib/providers/library_provider.dart` |
-| `home_screen.dart` | `lib/screens/home_screen.dart` |
-| `player_screen.dart` | `lib/screens/player_screen.dart` |
-| `song_list_screen.dart` | `lib/screens/song_list_screen.dart` |
-| `pubspec.yaml` | `pubspec.yaml` |
-# ACARMusic â€” DocumentaciÃ³n TÃ©cnica (Parte 2: Capa de Audio y Entrada)
+| Nombre del paquete Dart | `acar_music` |
+| Versión | `1.0.0+1` |
+| Application ID Android | `com.acar.music` |
+| Rama observada al actualizar este documento | `CarvaNew` |
+| SDK Dart | `>=3.3.0 <4.0.0` |
+| Java/Kotlin target Android | Java 17 / JVM 17 |
+| Tema | Oscuro fijo, Material 3 |
 
----
+La rama y la lista de cambios sin commit no deben mantenerse como datos de
+producto en esta documentación. El estado de Git se consulta con
+`git status --short --branch`.
 
-## `lib/main.dart`
-**Ruta:** `c:\Users\Andres\Desktop\Desarrollo\ACAR\ACARMusic\v2\ACARMusic\lib\main.dart`
-**Estado:** âš ï¸ Pendiente de commit
+## Cómo ejecutar
 
-Punto de entrada de la aplicaciÃ³n. Ejecuta la inicializaciÃ³n completa antes de montar la UI.
+Requisitos habituales:
 
-### Funciones
+1. Flutter instalado y configurado (`flutter doctor`).
+2. Android SDK y un dispositivo/emulador Android para probar la biblioteca
+   multimedia y el audio en segundo plano.
+3. Un archivo `android/local.properties` válido para que Gradle encuentre el
+   SDK de Flutter.
 
-| FunciÃ³n | DescripciÃ³n |
-|---|---|
-| `main()` | FunciÃ³n principal `async`. Inicializa bindings Flutter, orientaciones permitidas, estilo de la barra del sistema, solicita permisos, inicializa `AudioService` y lanza la app con `MultiProvider`. |
-| `_requestPermissions()` | Solicita en runtime: notificaciones, audio, almacenamiento, y optimizaciÃ³n de baterÃ­a (`ignoreBatteryOptimizations`). El bloque de baterÃ­a estÃ¡ envuelto en `try/catch` para evitar fallos en dispositivos que no lo soporten. |
+Comandos principales desde la raíz:
 
-### Configuración de `AudioService`
-```dart
-AudioServiceConfig(
-  androidNotificationChannelId: 'com.acar.music.playback',
-  androidNotificationChannelName: 'ACARMusic',
-  androidStopForegroundOnPause: false,   // mÃºsica sigue si se pausa
-  androidNotificationOngoing: true,       // no descartable por el usuario
-  androidShowNotificationBadge: true,
-)
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter run
 ```
 
----
+Para generar un APK de release:
 
-## `lib/app.dart`
-**Ruta:** `c:\Users\Andres\Desktop\Desarrollo\ACAR\ACARMusic\v2\ACARMusic\lib\app.dart`
-**Estado:** âš ï¸ Pendiente de commit
-
-Widget raÃ­z `ACARMusicApp`. Implementa `WidgetsBindingObserver` para detectar el ciclo de vida de la app.
-
-### Clase `_ACARMusicAppState`
-
-| Elemento | DescripciÃ³n |
-|---|---|
-| `_isForeground` | `bool` que indica si la app estÃ¡ en primer plano. |
-| `didChangeAppLifecycleState()` | Detecta transiciones de estado (resumed / paused / hidden). Actualiza `_isForeground`. |
-| `build()` | Envuelve `MaterialApp` en `TickerMode(enabled: _isForeground)`. **Clave de optimizaciÃ³n:** detiene TODOS los `AnimationController` cuando la app pasa a segundo plano, ahorrando CPU y baterÃ­a sin interrumpir el audio. |
-
----
-
-## `lib/audio/audio_handler.dart`
-**Ruta:** `c:\Users\Andres\Desktop\Desarrollo\ACAR\ACARMusic\v2\ACARMusic\lib\audio\audio_handler.dart`
-**Estado:** âš ï¸ Pendiente de commit
-
-Handler central del audio. Extiende `BaseAudioHandler with SeekHandler` de `audio_service`, lo que habilita el control desde la notificaciÃ³n del sistema, auriculares Bluetooth y pantalla de bloqueo.
-
-### Clase `ACARMusicHandler`
-
-| Elemento | DescripciÃ³n |
-|---|---|
-| `_player` | Instancia de `AudioPlayer` (just_audio). Motor real de reproducciÃ³n. |
-| `onSkipToNext` | Callback asignable desde `AudioProvider`. Desacopla la lÃ³gica de saltar al siguiente. |
-| `onSkipToPrevious` | Callback asignable desde `AudioProvider`. |
-| `onPlaybackStateChanged` | Callback que se llama en cada cambio de estado del player; notifica al provider. |
-| `_init()` | Configura `AudioSession` con el perfil `.music()` y lo activa. |
-| `setCurrentSong(SongModel)` | Publica el `MediaItem` al sistema (tÃ­tulo, artista, Ã¡lbum, portada, duraciÃ³n). Esto actualiza la notificaciÃ³n de Android y la pantalla de bloqueo. |
-| `_broadcastState(PlaybackEvent)` | Sincroniza el `playbackState` del handler con el estado real del `AudioPlayer` (posiciÃ³n, buffer, controles, processingState). |
-| `play()` / `pause()` / `seek()` | Delegados directamente al `AudioPlayer`. |
-| `skipToNext()` / `skipToPrevious()` | Invocan los callbacks asignados por el `AudioProvider`. |
-| `stop()` | Detiene el player y llama a `super.stop()` para limpiar el servicio. |
-| `onTaskRemoved()` | Al deslizar la app del recents: detiene el audio **solo si estaba pausado**, preservando la reproducciÃ³n activa. |
-
----
-
-## `lib/providers/audio_provider.dart`
-**Ruta:** `c:\Users\Andres\Desktop\Desarrollo\ACAR\ACARMusic\v2\ACARMusic\lib\providers\audio_provider.dart`
-**Estado:** âš ï¸ Pendiente de commit
-
-Cerebro del reproductor. `ChangeNotifier` que centraliza toda la lÃ³gica de estado de reproducciÃ³n.
-
-### Enum `AppRepeatState`
-```dart
-enum AppRepeatState { off, all, one }
+```bash
+flutter build apk --release
 ```
 
-### Estado interno
+El build de release Android tiene `minify` y `shrinkResources` desactivados y
+usa la configuración de firma debug definida en
+`android/app/build.gradle.kts`. Debe reemplazarse por una firma de producción
+antes de distribuir la aplicación.
 
-| Campo | Tipo | DescripciÃ³n |
-|---|---|---|
-| `_queue` | `List<SongModel>` | Cola de reproducciÃ³n activa |
-| `_currentIndex` | `int` | Ãndice de la canciÃ³n actual en la cola |
-| `_isShuffleOn` | `bool` | Modo aleatorio activado |
-| `_repeatMode` | `AppRepeatState` | Modo de repeticiÃ³n actual |
-| `positionNotifier` | `ValueNotifier<Duration>` | PosiciÃ³n en tiempo real (no rebuild completo) |
-| `durationNotifier` | `ValueNotifier<Duration>` | DuraciÃ³n de la pista actual |
-| `sleepRemainingNotifier` | `ValueNotifier<Duration>` | Tiempo restante del temporizador de sueÃ±o |
+## Dependencias
 
-### Métodos principales
+Las versiones fuente están en `pubspec.yaml`:
 
-| MÃ©todo | DescripciÃ³n |
+| Dependencia | Uso |
 |---|---|
-| `_init()` | Conecta los streams del player: posiciÃ³n, duraciÃ³n y estado. |
-| `bindLibrary()` | Llamado desde la UI cuando la biblioteca carga; dispara `_restoreSessionIfPossible`. |
-| `playSong(song, queue, index)` | Carga y reproduce una pista. Actualiza cola, Ã­ndice y `MediaItem`. |
-| `togglePlayPause()` | Alterna entre play y pause. |
-| `seekTo(double progress)` | Mueve la posiciÃ³n a `progress * duration`. |
-| `skipNext()` | Salta a la siguiente pista respetando shuffle y repeat. |
-| `skipPrevious()` | Si `position > 3s`, reinicia la pista; si no, retrocede. |
-| `_onTrackCompleted()` | Maneja el fin de pista segÃºn el modo de repeticiÃ³n. |
-| `toggleShuffle()` | Activa/desactiva aleatorio. |
-| `toggleRepeat()` | Cicla entre `off â†’ all â†’ one â†’ off`. |
-| `setSleepTimer(int minutes)` | Inicia un `Timer` que pausa el audio tras N minutos y un `Timer.periodic` de countdown. |
-| `cancelSleepTimer()` | Cancela el temporizador. |
-| `_saveSession()` | Persiste en `SharedPreferences`: canciÃ³n actual, posiciÃ³n, cola, shuffle, repeat. |
-| `_restoreSessionIfPossible()` | Al arrancar, reconstruye la cola y posiciÃ³n desde la sesiÃ³n guardada. Busca por ID y luego por path para robustez. |
-| `_scheduleSessionSave()` | Debounce de 700ms para no escribir en disco en cada frame de posiciÃ³n. |
-| `formatDuration(Duration)` | Convierte duraciÃ³n a `"m:ss"`. |
-# ACARMusic â€” DocumentaciÃ³n TÃ©cnica (Parte 3: Providers, Models y Theme)
+| `just_audio` | Motor de reproducción local |
+| `audio_service` | MediaSession, servicio y notificación en segundo plano |
+| `audio_session` | Audio focus, interrupciones y dispositivo ruidoso |
+| `on_audio_query` | Consulta de canciones, álbumes y artistas del dispositivo |
+| `provider` | Estado con `ChangeNotifier`, `Selector` y `ProxyProvider` |
+| `permission_handler` | Permisos de audio, almacenamiento, micrófono, notificaciones y batería |
+| `shared_preferences` | Favoritos, historial, playlists, sesión y preferencias |
+| `google_fonts` | API de Manrope; las fuentes se empaquetan localmente |
+| `palette_generator` | Colores de las portadas para el reproductor y tiles |
 
----
+## Estructura del código
 
-## `lib/providers/library_provider.dart`
-**Ruta:** `c:\Users\Andres\Desktop\Desarrollo\ACAR\ACARMusic\v2\ACARMusic\lib\providers\library_provider.dart`
-**Estado:** âš ï¸ Pendiente de commit
+```text
+lib/
+├── main.dart                         Entrada, errores, permisos y providers
+├── app.dart                           MaterialApp, ciclo de vida y tema
+├── audio/
+│   ├── audio_handler.dart              MediaSession y AudioPlayer
+│   ├── audio_provider.dart             Cola, reproducción y sesión
+│   └── settings/
+│       ├── animation_style_sheet.dart  Selector de visualizador
+│       ├── equalizer_dialog.dart       Puente al ecualizador Android
+│       └── sleep_timer_sheet.dart      Selector del temporizador
+├── library/
+│   ├── library_provider.dart            Biblioteca y persistencia
+│   ├── models/custom_playlist.dart      Modelo de playlist personalizada
+│   └── widgets/track_tile.dart          Tile reutilizable de canción
+├── screens/
+│   ├── home/home_screen.dart            Shell y navegación principal
+│   ├── home/widgets/permission_screen.dart
+│   ├── library/library_screen.dart      Pistas, álbumes, artistas, carpetas
+│   ├── library/playlists_screen.dart    Listas inteligentes y personales
+│   ├── library/song_list_screen.dart    Listas genéricas y drag & drop
+│   ├── explore/explore_screen.dart      Búsqueda, historial y géneros visuales
+│   ├── player/player_screen.dart        Reproductor completo
+│   ├── playlist/playlist_detail_screen.dart  Pantalla legacy/adaptadora
+│   └── settings/settings_screen.dart   Ajustes
+├── theme/app_theme.dart                 Paleta y ThemeData
+├── visualizers/                         Visualizadores y FFT
+│   ├── animation_style.dart
+│   ├── visualizer_factory.dart
+│   ├── visualizer_service.dart
+│   ├── bar/bar_visualizer.dart
+│   ├── radial/radial_visualizer.dart
+│   ├── minimalist/minimalist_visualizer.dart
+│   └── vinyl/vinyl_record.dart
+└── widgets/
+    ├── mini_player.dart
+    └── buttons/{glow_button,pressable_scale,tap_scale}.dart
+```
 
-Gestiona la biblioteca musical: carga, filtrado, favoritos, historial, playlists y conteo de reproducciones. Toda la persistencia usa `SharedPreferences`.
+## Flujo de arranque y estado
 
-### Estado interno
+### `lib/main.dart`
 
-| Campo | DescripciÃ³n |
+`main()` configura `GoogleFonts.config.allowRuntimeFetching = false`, inicializa
+Flutter, captura errores de Flutter/Dart/platform, permite las cuatro
+orientaciones y configura las barras del sistema. Después solicita permisos,
+inicializa `AudioService` y monta un `MultiProvider` con:
+
+- `LibraryProvider` para la biblioteca.
+- `AudioProvider`, creado con `ChangeNotifierProxyProvider`, para enlazar la
+  biblioteca disponible con el reproductor.
+
+Si `AudioService.init` falla, se crea igualmente un `ACARMusicHandler` local y
+`ACARMusicApp` muestra el error completo en un diálogo. Los errores capturados
+se guardan con la clave `last_crash_log` y se muestran en el siguiente inicio.
+
+`_requestPermissions()` solicita `audio`, `storage`, `microphone` e
+`ignoreBatteryOptimizations`. El permiso de notificaciones se pide después del
+primer frame desde `lib/app.dart`.
+
+### `lib/app.dart`
+
+`ACARMusicApp` observa el ciclo de vida, utiliza `AppTheme.darkTheme`, fuerza
+`ThemeMode.dark` y envuelve `MaterialApp` en `TickerMode`. Al pasar la app a
+segundo plano desactiva animaciones Flutter sin detener el audio.
+
+### `lib/screens/home/home_screen.dart`
+
+Es el shell principal con cuatro destinos: Biblioteca, Explorar, Listas y
+Ajustes. En portrait usa navegación inferior; en landscape usa un rail
+lateral. El `MiniPlayer` se muestra sobre el contenido y `PopScope` envía la
+app al background al usar el botón atrás físico. Si no hay permiso para la
+biblioteca, se muestra `PermissionScreen`.
+
+## Audio y reproducción
+
+### `lib/audio/audio_handler.dart`
+
+`ACARMusicHandler` extiende `BaseAudioHandler with SeekHandler` y encapsula el
+`AudioPlayer`. Publica `MediaItem` con título, artista, álbum, duración,
+portada `content://media/.../albumart` y extras con ID/ruta.
+
+Responsabilidades principales:
+
+- `setQueueAndCurrentSong()` actualiza la cola completa y la canción actual.
+- `updateCurrentSong()` cambia solo el `mediaItem` y el índice.
+- `_broadcastState()` sincroniza posición, buffer, estado, shuffle, repeat y
+  controles con Android.
+- Expone callbacks para siguiente, anterior, shuffle y repeat, asignados por
+  `AudioProvider`.
+- Configura audio focus, ducking, interrupciones y pausa al desconectar
+  auriculares (`becomingNoisy`).
+- `suppressBroadcast` evita ráfagas de actualizaciones al cambiar de pista,
+  especialmente importantes en dispositivos Samsung.
+- `onTaskRemoved()` detiene el servicio solo si el reproductor ya estaba
+  pausado; la reproducción activa sobrevive al gesto de quitar la app de
+  Recientes.
+
+El handler no llama a `super.stop()`: conserva la MediaSession/notificación y
+solo detiene el `AudioPlayer`.
+
+### `lib/audio/audio_provider.dart`
+
+`AudioProvider` es el estado de reproducción y observa el ciclo de vida.
+
+Estado público relevante:
+
+- `queue`, `currentIndex`, `currentSong`.
+- `isPlaying`, `isShuffleOn`, `repeatMode`.
+- `positionNotifier`, `durationNotifier` y `sleepRemainingNotifier`.
+- `animationStyle` y `visualizerService`.
+- `androidAudioSessionId` para abrir efectos de audio Android.
+
+La reproducción valida la ruta del archivo, espera cambios de pista pendientes,
+actualiza la MediaSession, carga el archivo con timeout de 12 segundos y
+restaura la posición/estado de la sesión cuando la biblioteca está lista.
+Guarda la sesión con debounce de 700 ms usando la clave `audio_session_v1`.
+
+También implementa historial de shuffle (máximo 50), temporizador de sueño,
+conteo de reproducción a través de `LibraryProvider` y arranque/parada del
+visualizador según estado, foreground y sesión Android.
+
+## Biblioteca y persistencia
+
+### `lib/library/library_provider.dart`
+
+Consulta `on_audio_query` ordenando por título. Solo conserva archivos que:
+
+- tengan `isMusic == true`;
+- duren al menos 10 segundos;
+- no estén en rutas que contengan `whatsapp`, `telegram`, `voice` o
+  `audio-record`.
+
+Expone canciones, recién añadidas (máximo 50 por `dateModified`), álbumes,
+artistas, favoritos, recién reproducidas, playlists y más escuchadas (máximo
+50 con contador mayor que cero). `search()` busca por título, artista y álbum.
+
+Las claves actuales de `SharedPreferences` son:
+
+| Clave | Tipo/contenido |
 |---|---|
-| `_songs` | Lista completa de canciones filtradas (excluye WhatsApp, Telegram, notas de voz, < 10s) |
-| `_recentlyAdded` | Las 50 mÃ¡s nuevas por `dateModified` |
-| `_albums` / `_artists` | Ãlbumes y artistas del dispositivo |
-| `_filteredSongs` | Resultado de bÃºsqueda activa |
-| `_favorites` | Canciones marcadas como favoritas |
-| `_recentlyPlayed` | Historial de reproducciÃ³n (mÃ¡x. 50) |
-| `_playlists` | Playlists personalizadas (`CustomPlaylist`) |
-| `_playCounts` | Mapa `songId â†’ count` para "MÃ¡s escuchadas" |
-
-### Claves de persistencia (`SharedPreferences`)
-
-| Clave | Contenido |
-|---|---|
-| `favorites_ids` | `List<String>` de IDs |
-| `recently_played_ids` | `List<String>` de IDs |
+| `favorites_ids` | `List<String>` con IDs de canciones |
+| `recently_played_ids` | `List<String>` con IDs de canciones |
 | `custom_playlists_v2` | JSON de `List<CustomPlaylist>` |
 | `play_counts` | JSON de `Map<String, int>` |
+| `playlist_sort_mode_<id>` | Orden elegido para una playlist |
+| `audio_session_v1` | Sesión de reproducción y cola |
+| `visualizer_style_v1` | Nombre del visualizador seleccionado |
+| `last_crash_log` | Último diagnóstico capturado |
 
-### Métodos principales
+La playlist personalizada usa IDs de canción `int` y un ID de playlist `String`
+basado en milisegundos. `getSongsForPlaylist(String)` conserva el orden de
+`songIds`; `getSongsFromPlaylist(Object)` es un adaptador async que mantiene
+compatibilidad con `PlaylistDetailScreen`.
 
-| Método | DescripciÃ³n |
+## Pantallas y widgets
+
+### Biblioteca y listas
+
+- `library_screen.dart`: tabs de Pistas, Álbumes, Artistas y Carpetas; índice
+  alfabético en Pistas; reproducción aleatoria; opciones de favorito y
+  playlist.
+- `playlists_screen.dart`: tarjetas de Recién añadidas, Más escuchadas,
+  Favoritos y Escuchadas recientemente; creación, renombrado y eliminación de
+  playlists personales.
+- `song_list_screen.dart`: recibe `String? playlistId`; soporta orden
+  personalizado, A-Z y recién añadidas. En orden personalizado permite drag &
+  drop y persiste la nueva secuencia.
+- `playlist_detail_screen.dart`: pantalla legacy que recibe `int playlistId`
+  y usa el adaptador `getSongsFromPlaylist`. Los textos y acciones de esta
+  pantalla todavía conservan partes en inglés.
+
+### Explorar y reproductor
+
+- `explore_screen.dart`: búsqueda en tiempo real, resultados, carrusel de
+  escuchadas recientemente y tarjetas de géneros decorativas.
+- `player_screen.dart`: vista portrait/landscape, portada, colores dinámicos
+  con `PaletteGenerator`, cola, progreso, controles, favorito, agregar a
+  playlist, temporizador, ecualizador y selector de visualizador.
+- `mini_player.dart`: acceso persistente al reproductor completo y controles
+  de pausa/reproducción con barra de progreso ligera.
+- `library/widgets/track_tile.dart`: tile reutilizable con arte, color de
+  acento derivado de la portada, estado de pista activa y menú contextual.
+
+### Ajustes
+
+`settings_screen.dart` muestra temporizador de sueño, selector de animación,
+calidad/efectos de sonido y diálogo Acerca de. El selector de animación guarda
+uno de estos valores:
+
+| Valor | Implementación |
 |---|---|
-| `loadLibrary()` | Consulta `on_audio_query` para pistas, Ã¡lbumes y artistas. Filtra rutas de apps de mensajerÃ­a. |
-| `search(String)` | Filtra por tÃ­tulo, artista y Ã¡lbum (case-insensitive). |
-| `clearSearch()` | Limpia el query y regresa a la lista completa. |
-| `addToFavorites(song)` / `removeFromFavorites(song)` | Gestiona la lista de favoritos y persiste. |
-| `isFavorite(song)` | Retorna `bool` para mostrar el Ã­cono de corazÃ³n. |
-| `addToRecentlyPlayed(song)` | Inserta al inicio, elimina duplicados, limita a 50. |
-| `incrementPlayCount(int)` | Incrementa silenciosamente el contador (sin `notifyListeners`). |
-| `createPlaylist(String)` | Crea playlist con ID = timestamp actual. |
-| `deletePlaylist(String)` | Elimina por ID. |
-| `renamePlaylist(String, String)` | Renombra usando `copyWith`. |
-| `addSongToPlaylist(playlistId, songId)` | Agrega si no existe ya. |
-| `removeSongFromPlaylist(playlistId, songId)` | Elimina de la lista de IDs. |
-| `reorderPlaylist(playlistId, List<int>)` | Guarda el nuevo orden (drag & drop). Sin `notifyListeners` porque la UI ya actualizÃ³ el estado local. |
-| `getSongsForPlaylist(playlistId)` | Devuelve canciones en el orden exacto de `songIds` usando un mapa O(1). |
-| `getSongsByAlbum(albumId)` | Filtra por Ã¡lbum. |
-| `getSongsByArtist(artistId)` | Filtra por artista. |
-| `mostPlayed` (getter) | Ordena por `_playCounts` descendente, retorna top 50. |
+| `vinyl` | `VinylRecord` giratorio |
+| `barVisualizer` | `BarVisualizer` con barras FFT |
+| `radialVisualizer` | `RadialVisualizer` circular |
+| `minimalist` | `MinimalistVisualizer` con portada |
 
----
+## Visualizador y código Android nativo
 
-## `lib/models/custom_playlist.dart`
-**Ruta:** `c:\Users\Andres\Desktop\Desarrollo\ACAR\ACARMusic\v2\ACARMusic\lib\models\custom_playlist.dart`
+`VisualizerService` comunica Dart con Android por:
 
-Modelo de datos para playlists personalizadas.
+- MethodChannel `com.acar.music/visualizer`.
+- EventChannel `com.acar.music/visualizer_fft`.
 
-### Clase `CustomPlaylist`
+`android/app/src/main/kotlin/com/acar/music/VisualizerPlugin.kt` intenta crear
+un `android.media.audiofx.Visualizer` para el `audioSessionId`. Si el DSP o el
+dispositivo no lo permite, devuelve `false` y Dart genera un stream FFT
+simulado. Cuando la reproducción está pausada, emite frames silenciosos.
 
-| Campo | Tipo | DescripciÃ³n |
-|---|---|---|
-| `id` | `String` | Timestamp en ms (Ãºnico) |
-| `name` | `String` | Nombre de la playlist |
-| `songIds` | `List<int>` | IDs de canciones en orden personalizado |
+`MainActivity.kt` también registra el MethodChannel
+`com.acar.music/equalizer`. `openEqualizer` abre el panel de efectos del
+dispositivo con el audio session ID; si Android no tiene una actividad
+compatible, la UI informa que no está disponible.
 
-### Métodos
+## Permisos y configuración Android
 
-| MÃ©todo | DescripciÃ³n |
+`android/app/src/main/AndroidManifest.xml` declara:
+
+- `READ_EXTERNAL_STORAGE` hasta API 32 y `READ_MEDIA_AUDIO` desde API 33.
+- `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK` y `WAKE_LOCK`.
+- `POST_NOTIFICATIONS`.
+- `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
+- `RECORD_AUDIO` para el visualizador FFT.
+
+También registra el servicio `com.ryanheise.audioservice.AudioService` con
+`foregroundServiceType="mediaPlayback"` y el receptor de botones de medios.
+
+## Tema y rendimiento
+
+`lib/theme/app_theme.dart` define Material 3 oscuro. Colores principales:
+
+| Token | Hex |
 |---|---|
-| `toJson()` | Serializa a `Map<String, dynamic>` |
-| `fromJson(Map)` | Factory de deserializaciÃ³n |
-| `copyWith({name, songIds})` | Inmutabilidad: genera copia con campos actualizados |
-| `decodeList(String)` | Deserializa JSON â†’ `List<CustomPlaylist>` |
-| `encodeList(List)` | Serializa `List<CustomPlaylist>` â†’ JSON String |
+| `background` | `#000000` |
+| `surface` | `#0E0E0E` |
+| `surfaceContainerLow` | `#131313` |
+| `surfaceContainerHigh` | `#1F1F1F` |
+| `surfaceVariant` | `#262626` |
+| `primary` | `#C6C6C7` |
+| `tertiary` | `#FAF9F9` |
+| `onSurface` | `#E5E5E5` |
+| `onSurfaceVariant` | `#ABABAB` |
 
----
+Optimizaciones actuales:
 
-## `lib/theme/app_theme.dart`
-**Ruta:** `c:\Users\Andres\Desktop\Desarrollo\ACAR\ACARMusic\v2\ACARMusic\lib\theme\app_theme.dart`
+- `TickerMode` y observers de ciclo de vida pausan animaciones en background.
+- `Selector` limita reconstrucciones de Provider.
+- `ValueNotifier` actualiza posición/duración sin reconstruir toda la pantalla.
+- `RepaintBoundary` y arte persistente reducen parpadeos de portadas.
+- `itemExtent`/alturas fijas se usan en listas críticas.
+- `suppressBroadcast` reduce llamadas al canal de plataforma durante cambios de
+  pista.
+- La fuente Manrope se empaqueta en `assets/google_fonts/`; no se requiere red.
 
-Define el sistema de diseÃ±o completo de la app. Solo tiene un tema oscuro (no existe tema claro activo).
+## Flujo principal
 
-### Paleta "Sonic Monolith / ACARMusic"
+```text
+main.dart
+  ├─ permisos
+  ├─ AudioService.init → ACARMusicHandler → just_audio.AudioPlayer
+  └─ MultiProvider
+       ├─ LibraryProvider → on_audio_query → canciones/álbumes/artistas
+       └─ AudioProvider → cola/sesión/controles/visualizador
 
-| Token | Hex | Uso |
-|---|---|---|
-| `background` | `#000000` | Fondo de todos los Scaffolds |
-| `surface` | `#0E0E0E` | Superficies de tarjetas / tiles |
-| `surfaceContainerLow` | `#131313` | Tiles activos (pista sonando) |
-| `surfaceContainerHigh` | `#1F1F1F` | Modales y bottom sheets |
-| `surfaceVariant` | `#262626` | Elementos secundarios |
-| `primary` | `#C6C6C7` | Color de acento principal (gris platino) |
-| `tertiary` | `#FAF9F9` | BotÃ³n play, barra de progreso |
-| `onSurface` | `#E5E5E5` | Texto principal |
-| `onSurfaceVariant` | `#ABABAB` | Texto secundario |
-| `outline` | `#757575` | Bordes y elementos inactivos |
-
-### `darkTheme` (getter)
-Construye `ThemeData` con `useMaterial3: true`, `splashColor: transparent` (quita el ripple) y el `ColorScheme` personalizado.
-# ACARMusic â€” DocumentaciÃ³n TÃ©cnica (Parte 4: Screens)
-
----
-
-## `lib/screens/home_screen.dart`
-**Ruta:** `lib/screens/home_screen.dart`  **Estado:** âš ï¸ Pendiente de commit
-
-Shell de navegaciÃ³n principal. Muestra la pantalla correcta segÃºn permisos y orientaciÃ³n.
-
-| Elemento | Descripción |
-|---|---|
-| `_screens` | `IndexedStack` con las 4 pestaÃ±as: Biblioteca, Explorar, Listas, Ajustes |
-| `_buildPortrait()` | Layout vertical: `BottomNavigationBar` personalizado + `MiniPlayer` sobre el contenido |
-| `_buildLandscape()` | Layout horizontal: rail lateral de 64px + contenido expandido |
-| `_buildBottomNav()` | Nav bar con 4 iconos, animaciÃ³n `AnimatedContainer` de 200ms al seleccionar |
-| `_buildSideNav()` | Rail lateral en landscape con los mismos iconos |
-| Guardia de permisos | Si `!library.hasPermission` â†’ muestra `PermissionScreen` en vez del Scaffold |
-| `PopScope` | Intercepta el botÃ³n "atrÃ¡s" fÃ­sico para mover la app al background (`SystemNavigator.pop()`) en lugar de cerrarla |
-
----
-
-## `lib/screens/library_screen.dart`
-**Ruta:** `lib/screens/library_screen.dart`
-
-Biblioteca musical con tabs y sidebar alfabÃ©tico. Usa `NestedScrollView` para que el header colapse al hacer scroll.
-
-| Método / Widget | Descripción |
-|---|---|
-| `TabController` (4 tabs) | Pistas / Ãlbumes / Artistas / Carpetas |
-| `_buildLetterIndex()` | Construye un mapa `letra â†’ Ã­ndice` para el sidebar alfabÃ©tico |
-| `_scrollToLetter()` | `animateTo(idx * 72.0)` para saltar a la letra tocada |
-| `_buildTracksTab()` | `ListView.builder` + sidebar derecho de 22px con letras A-Z. Usa `Selector` para evitar rebuilds globales. |
-| `_buildAlbumsTab()` | `GridView` 2 columnas con portadas de Ã¡lbum y opciÃ³n de reproducir al tocar |
-| `_buildArtistsTab()` | `ListView` de artistas con avatar circular y contador de canciones |
-| `_buildFoldersTab()` | Agrupa canciones por carpeta del sistema y muestra como lista |
-| `_buildEmpty()` | Widget vacÃ­o genÃ©rico (Ã­cono + mensaje) |
-| `_showTrackOptions()` | Bottom sheet: Agregar a Favoritos / Agregar a Lista |
-| `_StickyTabBarDelegate` | `SliverPersistentHeaderDelegate` para mantener el `TabBar` pegado debajo del `SliverAppBar` |
-| BotÃ³n "Mezclar" | En el header expandido; reproduce una canciÃ³n aleatoria de la biblioteca |
-
----
-
-## `lib/screens/explore_screen.dart`
-**Ruta:** `lib/screens/explore_screen.dart`
-
-Pantalla de descubrimiento con buscador en tiempo real, historial y tarjetas de gÃ©neros.
-
-| Elemento | Descripción |
-|---|---|
-| `_searchCtrl` | `TextEditingController` del campo de bÃºsqueda |
-| `_buildSearchBar()` | Campo de texto con `prefixIcon` lupa y `suffixIcon` Ã— para limpiar. Llama a `library.search(v)` en `onChanged`. |
-| `_buildSearchResults()` | `SliverList` de `TrackTile` filtrado por el query activo |
-| `_buildRecentlyPlayed()` | Carrusel horizontal de 148Ã—148px de las Ãºltimas pistas escuchadas |
-| `_buildGenres()` | Grid 2Ã—3 de tarjetas de gÃ©neros con gradiente. Actualmente decorativo (sin filtrado real por gÃ©nero). |
-| `_Genre` / `_GenreCard` | Modelo interno y widget de tarjeta de gÃ©nero con Ã­cono en `Stack` semitransparente |
-
----
-
-## `lib/screens/playlists_screen.dart`
-**Ruta:** `lib/screens/playlists_screen.dart`
-
-Hub de listas de reproducciÃ³n. Muestra colecciones inteligentes y playlists personalizadas.
-
-| Elemento | Descripción |
-|---|---|
-| `_buildTopCards()` | 4 tarjetas con gradiente (2Ã—2): ReciÃ©n aÃ±adidas, MÃ¡s escuchadas, Favoritos, Escuchadas recientemente. Cada una navega a `SongListScreen`. |
-| `_buildPlaylistsList()` | `SliverList` de las playlists del usuario. Cada item tiene botÃ³n `â‹®` con opciones. |
-| `_showCreatePlaylistDialog()` | `AlertDialog` con `TextField` para nombre. Llama a `library.createPlaylist()`. |
-| `_showPlaylistOptions()` | Bottom sheet con opciones: Renombrar / Eliminar lista |
-| `_showRenameDialog()` | `AlertDialog` pre-rellenado con el nombre actual |
-| `_TopCard` | Widget reutilizable de tarjeta con gradiente, Ã­cono decorativo y conteo de canciones |
-
----
-
-## `lib/screens/song_list_screen.dart`
-**Ruta:** `lib/screens/song_list_screen.dart`  **Estado:** âš ï¸ Pendiente de commit
-
-Pantalla genérica de lista de canciones. Usada por favoritos, recientes, mÃ¡s escuchadas y playlists personalizadas.
-
-| Elemento | DescripciÃ³n |
-|---|---|
-| `playlistId` (param.) | Si no es `null`, habilita modo editable con drag & drop |
-| `_SortMode` | Enum: `custom` (orden propio) / `az` (A-Z) / `recentlyAdded` |
-| `_applySort()` | Reordena `_sorted` segÃºn el modo activo |
-| `_onReorder()` | Callback del drag & drop; llama a `library.reorderPlaylist()` para persistir |
-| `SliverReorderableList` | Lista con drag & drop (solo playlists en modo `custom`). El handle es un Ã­cono separado (`ReorderableDragStartListener`) para no interferir con el scroll. |
-| `_buildSortMenu()` | `PopupMenuButton` con las opciones de orden |
-| `_BackgroundArt` | Header visual: si hay 1 canciÃ³n muestra su portada, si hay mÃ¡s muestra un grid 2Ã—2, si no hay ninguna muestra el Ã­cono de lista |
-| `_showOptions()` | Bottom sheet: Favoritos / Quitar de esta lista (si es playlist) |
-| `MiniPlayer` en `bottomNavigationBar` | El mini player se ancla como `bottomNavigationBar` del Scaffold en esta pantalla |
-
----
-
-## `lib/screens/player_screen.dart`
-**Ruta:** `lib/screens/player_screen.dart`  **Estado:** âš ï¸ Pendiente de commit
-
-Pantalla completa del reproductor. La mÃ¡s compleja del proyecto (759 lÃ­neas).
-
-| Elemento | Descripción |
-|---|---|
-| `_colorA`, `_colorB`, `_glowColor` | Colores dinÃ¡micos extraÃ­dos de la portada del Ã¡lbum |
-| `_bgCtrl` | `AnimationController` de 6 segundos en loop para el fondo degradado animado |
-| `_showQueue` | `bool` que alterna entre vista del vinilo y panel de cola |
-| `_queueScrollCtrl` | Scroll automÃ¡tico a la canciÃ³n actual al abrir la cola |
-| `didChangeAppLifecycleState()` | Pausa `_bgCtrl` cuando la app estÃ¡ en background (ahorra CPU) |
-| `_extractPalette(song)` | Usa `PaletteGenerator` sobre la portada JPEG del Ã¡lbum para extraer `vibrantColor`, `dominantColor` y `mutedColor`. Actualiza el fondo animado. |
-| `_fallback(song)` | Si no hay portada, genera colores por HSL a partir del `albumId`. |
-| `_buildPortrait()` | Layout vertical: header, tÃ­tulo/artista (72px fijo), vinilo/cola (Expanded), Ã¡lbum, progreso, controles, botones de acciÃ³n |
-| `_buildLandscape()` | Layout horizontal 2 columnas: izquierda vinilo, derecha controles |
-| `_buildQueuePanel()` | `ListView.builder` con altura fija (`itemExtent: 60`). Resalta la canciÃ³n actual. |
-| `_progressBar()` | `ValueListenableBuilder` anidado para posiciÃ³n y duraciÃ³n. `Slider` personalizado. |
-| `_controls()` | `Selector` de `(isPlaying, shuffleOn, repeatMode)`. Botones: shuffle, anterior, play/pause, siguiente, repeat. |
-| `_actionButtons()` | 3 botones: LIKE (favorito), LISTA (agregar a playlist), COLA (toggle panel) |
-| `_addToPlaylistSheet()` | Modal para seleccionar a quÃ© playlist agregar la canciÃ³n actual |
-| `_ActionBtn` | Widget privado: Ã­cono + etiqueta en columna |
-| `_PressableScale` | Widget de micro-animaciÃ³n: escala a 0.92 al presionar (110ms) |
-
----
-
-## `lib/screens/settings_screen.dart`
-**Ruta:** `lib/screens/settings_screen.dart`
-
-| Elemento | DescripciÃ³n |
-|---|---|
-| `_buildSleepTimerTile()` | Tile especial con `ValueListenableBuilder` para mostrar el countdown en tiempo real |
-| `_showSleepTimerSheet()` | Bottom sheet con presets (15, 30, 45, 60, 90, 120 min) y campo personalizado |
-| `_showEqualizer()` | Informa que el ecualizador requiere integraciÃ³n del sistema (no implementado) |
-| `_showAbout()` | `showAboutDialog` nativo con info de la app |
-| `_buildSection()` | Contenedor de grupo de ajustes con etiqueta en mayÃºsculas |
-| `_buildSettingTile()` | Tile reutilizable con Ã­cono circular, tÃ­tulo, subtÃ­tulo y trailing |
-| `_fmt(Duration)` | Formatea duraciÃ³n en `"Xm Ys"` o `"Xh Ym"` |
-
----
-
-## `lib/screens/playlist_detail_screen.dart`
-**Ruta:** `lib/screens/playlist_detail_screen.dart`
-
-> âš ï¸ Pantalla **legacy** â€” Recibe un `playlistId` de tipo `int` (playlists del sistema de `on_audio_query`, no las playlists personalizadas del app). La funciÃ³n `getSongsFromPlaylist` que referencia no existe en `LibraryProvider` actual. EstÃ¡ siendo reemplazada por `SongListScreen` + `playlistId` de tipo `String`. La opciÃ³n "Remove from Playlist" tiene un TODO pendiente de implementaciÃ³n.
-
----
-# ACARMusic â€” DocumentaciÃ³n TÃ©cnica (Parte 5: Widgets, Optimizaciones y Notas)
-
----
-
-## `lib/widgets/mini_player.dart`
-**Ruta:** `lib/widgets/mini_player.dart`
-
-Mini reproductor flotante que aparece en la parte inferior cuando hay una canciÃ³n activa.
-
-| Elemento | DescripciÃ³n |
-|---|---|
-| `MiniPlayer` | `StatelessWidget`. Usa `context.select` solo para el ID de canciÃ³n (evita rebuilds por posiciÃ³n). Lee el resto con `context.read`. |
-| NavegaciÃ³n | Al tocar, abre `PlayerScreen` con animaciÃ³n de slide desde abajo (`SlideTransition` + `PageRouteBuilder`). |
-| `_ProgressBar` | Widget separado con `ValueListenableBuilder<Duration>`. Dibuja manualmente la barra (3px de alto, sin `Slider`) para rendimiento Ã³ptimo. |
-| `_PressableIconButton` | BotÃ³n Ã­cono con efecto de escala al presionar. |
-| `_PressableScale` | Escala a 0.9 en 110ms (idÃ©ntico al del `PlayerScreen`). |
-| Portada | `QueryArtworkWidget` con `keepOldArtwork: true` y `RepaintBoundary` para evitar repaints al cambiar la posiciÃ³n. |
-| Controles | `Selector<AudioProvider, bool>` solo para `isPlaying` â†’ solo el botÃ³n play/pause re-renderiza. |
-
----
-
-## `lib/widgets/track_tile.dart`
-**Ruta:** `lib/widgets/track_tile.dart`
-
-Tile reutilizable para mostrar una pista en cualquier lista.
-
-| Prop | Tipo | DescripciÃ³n |
-|---|---|---|
-| `song` | `SongModel` | Datos de la pista |
-| `isPlaying` | `bool` | Si esta pista estÃ¡ sonando ahora |
-| `onTap` | `VoidCallback` | AcciÃ³n al tocar el tile |
-| `onMore` | `VoidCallback?` | AcciÃ³n del botÃ³n `â‹¯` |
-| `trailingOverride` | `Widget?` | Reemplaza el `â‹¯` por un widget custom (usado para el drag handle en playlists) |
-
-**Comportamiento visual:**
-- Si `isPlaying`: fondo `surfaceContainerLow`, tÃ­tulo en `tertiary`, Ã­cono de ecualizador sobre la portada.
-- Si no: fondo transparente, tÃ­tulo en `onSurface`.
-
----
-
-## `lib/widgets/vinyl_record.dart`
-**Ruta:** `lib/widgets/vinyl_record.dart`
-
-Disco de vinilo animado que gira mientras se reproduce mÃºsica.
-
-| Elemento | DescripciÃ³n |
-|---|---|
-| `_ctrl` | `AnimationController` de 8 segundos en loop continuo |
-| `didChangeAppLifecycleState()` | Pausa el `AnimationController` cuando la app va al background. **El audio NO se interrumpe.** |
-| `didUpdateWidget()` | Arranca o detiene la animaciÃ³n segÃºn `isPlaying`, pero solo si la app estÃ¡ en foreground. |
-| `_buildDisc()` | Stack de 4 capas: halo de glow exterior, cuerpo negro con `SweepGradient`, portada del Ã¡lbum centrada (clip circular), punto negro central. |
-| `_GroovesPainter` | `CustomPainter` que dibuja surcos concÃ©ntricos alternando colores blancos/negros cada 3.5px. `shouldRepaint â†’ false` (estÃ¡tico). |
-| `glowColor` | Color dinÃ¡mico recibido del `PlayerScreen` (extraÃ­do con `PaletteGenerator`). |
-| `size` | TamaÃ±o del disco en px, calculado por `LayoutBuilder` en el player para ser responsivo. |
-
----
-
-## `lib/widgets/permission_screen.dart`
-**Ruta:** `lib/widgets/permission_screen.dart`
-
-Pantalla que se muestra si la app no tiene permisos de almacenamiento/audio.
-
-> âš ï¸ El texto estÃ¡ en inglÃ©s ("Music Library Access", "Grant Permission"). Pendiente de traducir al espaÃ±ol para mantener consistencia con el resto de la UI.
-
-Contiene un Ãºnico botÃ³n que llama a `library.requestPermissionAndLoad()`.
-
----
-
-## Optimizaciones de Rendimiento y BaterÃ­a
-
-| TÃ©cnica | DÃ³nde | Efecto |
-|---|---|---|
-| `TickerMode(enabled: _isForeground)` | `app.dart` | Detiene TODOS los `AnimationController` en background |
-| `WidgetsBindingObserver` en `VinylRecord` | `vinyl_record.dart` | Pausa el giro del vinilo en background |
-| `WidgetsBindingObserver` en `_PlayerContentState` | `player_screen.dart` | Pausa el fondo degradado animado en background |
-| `Selector` en vez de `Consumer` | Mini player, Home, Player | Solo rebuilda el widget especÃ­fico que cambiÃ³ |
-| `ValueListenableBuilder` para posiciÃ³n | Mini player, Player | La barra de progreso no usa el Ã¡rbol de Provider |
-| `RepaintBoundary` en portadas | Todos los `QueryArtworkWidget` | Las imÃ¡genes no fuerzan repaints de sus vecinos |
-| `itemExtent` fijo en listas | Library, Queue panel | Flutter no calcula tamaÃ±o de items â†’ scroll mÃ¡s rÃ¡pido |
-| `keepOldArtwork: true` | Todos los `QueryArtworkWidget` | No parpadea al cambiar de canciÃ³n |
-| Debounce de 700ms para guardar sesiÃ³n | `audio_provider.dart` | Evita escrituras en disco en cada frame de posiciÃ³n |
-| `_scheduleSessionSave()` solo si hay canciÃ³n | `audio_provider.dart` | No escribe sesiÃ³n vacÃ­a innecesariamente |
-| `onTaskRemoved()` condicional | `audio_handler.dart` | Solo detiene el servicio si el audio ya estaba pausado |
-
----
-
-## Flujo de Datos Principal
-
-```
-Dispositivo
-    â†“ on_audio_query
-LibraryProvider (_songs, _albums, _artists)
-    â†“ bindLibrary()
-AudioProvider (_restoreSessionIfPossible)
-    â†“ playSong()
-ACARMusicHandler (setCurrentSong â†’ MediaItem â†’ NotificaciÃ³n)
-    â†“ just_audio AudioPlayer
-Speaker / Auriculares
-
-NotificaciÃ³n Android / Pantalla de bloqueo / Auriculares Bluetooth
-    â†“ skipToNext / skipToPrevious / play / pause
-ACARMusicHandler (callbacks â†’ AudioProvider)
-    â†“
-AudioProvider (skipNext, skipPrevious, togglePlayPause)
+Pantalla → AudioProvider.playSong()
+        → ACARMusicHandler MediaItem + AudioPlayer
+        → audio local + MediaSession Android
+        → notificación / bloqueo / Bluetooth
 ```
 
----
+## Archivos de plataforma y recursos importantes
 
-## Notas de Pendientes Conocidos
+| Ubicación | Responsabilidad |
+|---|---|
+| `pubspec.yaml` | Dependencias, versión, assets y fuentes |
+| `assets/icon/` | Icono de la aplicación |
+| `assets/google_fonts/` | Fuentes Manrope bundled |
+| `android/app/src/main/AndroidManifest.xml` | Permisos, servicio y receiver |
+| `android/app/src/main/kotlin/com/acar/music/MainActivity.kt` | MethodChannel Android |
+| `android/app/src/main/kotlin/com/acar/music/VisualizerPlugin.kt` | FFT nativa |
+| `android/app/src/main/res/drawable/ic_notification*.xml` | Iconos de controles de notificación |
+| `test/widget_test.dart` | Placeholder de pruebas |
 
-| Ãtem | Archivo | DescripciÃ³n |
-|---|---|---|
-| `playlist_detail_screen.dart` | `lib/screens/` | Pantalla legacy; `getSongsFromPlaylist(int)` no existe en el provider actual. Reemplazar con `SongListScreen`. |
-| GÃ©neros sin filtrado | `explore_screen.dart` | Las tarjetas de gÃ©neros son decorativas; no filtran canciones por gÃ©nero real. |
-| Ecualizador | `settings_screen.dart` | Muestra mensaje de que requiere integraciÃ³n del sistema. No implementado. |
-| Permisos en inglÃ©s | `permission_screen.dart` | Texto en inglÃ©s ("Grant Permission", "Music Library Access"). |
-| Switch de tema | `settings_screen.dart` | El `Switch` de "Tema oscuro" tiene estado local pero no cambia el `ThemeMode` real de la app (siempre oscuro). |
-| BotÃ³n `â‹®` en player | `player_screen.dart` | El `IconButton` de "MÃ¡s opciones" no hace nada aÃºn (`onPressed: () {}`). |
+## Mantenimiento de esta documentación
 
----
+Al mover una pantalla o cambiar una clave persistida, actualizar las rutas y
+tablas de este archivo en el mismo cambio. Antes de marcar una característica
+como implementada, comprobar su flujo desde la pantalla hasta el provider y,
+si aplica, hasta el canal Android. Validar con:
 
-*DocumentaciÃ³n generada el 4 de mayo de 2026. Rama: `CarvaNew`. Dispositivo de prueba: Samsung S20 FE.*
+```bash
+flutter analyze
+flutter test
+```
+
+**Última revisión:** 12 de septiembre de 2026, basada en el checkout actual de
+`CarvaNew`.
