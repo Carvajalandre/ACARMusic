@@ -3,20 +3,26 @@ enum VisualizerStyle {
   barVisualizer,
   radialVisualizer,
   minimalist,
-  cassette;
+  cassette,
+  void_,
+  motion;
 
   String get displayName {
     switch (this) {
       case VisualizerStyle.vinyl:
         return 'Disco de vinilo';
       case VisualizerStyle.barVisualizer:
-        return 'Bar Visualizer';
+        return 'Barras';
       case VisualizerStyle.radialVisualizer:
-        return 'Radial Visualizer';
+        return 'Radial';
       case VisualizerStyle.minimalist:
         return 'Minimalista';
       case VisualizerStyle.cassette:
         return 'Cassette';
+      case VisualizerStyle.void_:
+        return 'Void';
+      case VisualizerStyle.motion:
+        return 'Motion';
     }
   }
 
@@ -32,6 +38,10 @@ enum VisualizerStyle {
         return '◻️';
       case VisualizerStyle.cassette:
         return '📼';
+      case VisualizerStyle.void_:
+        return '🌌';
+      case VisualizerStyle.motion:
+        return '🌊';
     }
   }
 }

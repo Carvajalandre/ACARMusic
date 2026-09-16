@@ -1,3 +1,6 @@
+## Descargar App
+Puedes descargar la última versión del APK directamente desde el siguiente enlace:
+[Descargar APK (Última versión)](https://github.com/Carvajalandre/ACARMusic/releases/latest)
 # ACARMusic
 A new Flutter project.
 ## Getting Started
@@ -423,3 +426,7 @@ flutter test
 
 **Última revisión:** 12 de septiembre de 2026, basada en el checkout actual de
 `CarvaNew`.
+
+# Developer
+github user: Carvalandre
+mail: antraxcarvajal016@gmail.com
