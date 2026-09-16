@@ -341,6 +341,8 @@ class _PlayerContentState extends State<_PlayerContent>
                           paletteDominant: _colorA,
                           paletteMuted: _colorB,
                           artworkBytes: _artworkBytes,
+                          title: song.title,
+                          artist: song.artist,
                           size: maxSize,
                           fftStream: audio.visualizerService.fftStream,
                         );
@@ -425,6 +427,8 @@ class _PlayerContentState extends State<_PlayerContent>
                                           paletteDominant: _colorA,
                                           paletteMuted: _colorB,
                                           artworkBytes: _artworkBytes,
+                                          title: song.title,
+                                          artist: song.artist,
                                           size: visualizerSize,
                                           fftStream:
                                               audio.visualizerService.fftStream,

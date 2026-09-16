@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'animation_style.dart';
 import 'bar/bar_visualizer.dart';
-import 'radial/radial_visualizer.dart';
 import 'minimalist/minimalist_visualizer.dart';
+import 'radial/radial_visualizer.dart';
+import 'void/void_visualizer.dart';
+import 'motion/motion_visualizer.dart';
 import 'vinyl/vinyl_record.dart';
 import 'cassette/cassette_visualizer.dart';
 
@@ -17,6 +19,8 @@ class VisualizerFactory extends StatefulWidget {
   final double size;
   final Stream<List<double>>? fftStream;
   final Uint8List? artworkBytes;
+  final String? title;
+  final String? artist;
 
   const VisualizerFactory({
     super.key,
@@ -29,6 +33,8 @@ class VisualizerFactory extends StatefulWidget {
     this.size = 260,
     this.fftStream,
     this.artworkBytes,
+    this.title,
+    this.artist,
   });
 
   @override
@@ -68,6 +74,28 @@ class _VisualizerFactoryState extends State<VisualizerFactory> {
             fftStream: widget.fftStream ?? _fallbackStream,
             glowColor: widget.glowColor,
             albumId: widget.albumId,
+          ),
+        );
+      case VisualizerStyle.void_:
+        return SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: VoidVisualizer(
+            fftStream: widget.fftStream ?? _fallbackStream,
+            glowColor: widget.glowColor,
+            albumId: widget.albumId,
+          ),
+        );
+      case VisualizerStyle.motion:
+        return SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: MotionVisualizer(
+            fftStream: widget.fftStream ?? _fallbackStream,
+            glowColor: widget.glowColor,
+            albumId: widget.albumId,
+            title: widget.title,
+            artist: widget.artist,
           ),
         );
       case VisualizerStyle.minimalist:
