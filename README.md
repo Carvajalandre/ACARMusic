@@ -428,5 +428,5 @@ flutter test
 `CarvaNew`.
 
 # Developer
-github user: Carvalandre
+github user: Carvajalandre
 mail: antraxcarvajal016@gmail.com
